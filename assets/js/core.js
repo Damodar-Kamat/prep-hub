@@ -445,9 +445,11 @@
 
   function mergeFromFileData(d) {
     if (!d || typeof d !== "object") return;
-    store.topics = Object.assign({}, d.topics || {});
-    store.problems = Object.assign({}, d.problems || {});
-    store.code = Object.assign({}, d.code || {});
+    // Union so connecting a file never silently drops a tick made in this browser.
+    // Topics/problems: keep if set in either place. Code: file wins when it has an entry.
+    store.topics = Object.assign({}, store.topics, d.topics || {});
+    store.problems = Object.assign({}, store.problems, d.problems || {});
+    store.code = Object.assign({}, store.code, d.code || {});
   }
 
   async function loadFromHandle() {
