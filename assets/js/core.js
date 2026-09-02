@@ -13,7 +13,7 @@
     try { return Object.assign({ topics: {}, problems: {}, code: {} }, JSON.parse(localStorage.getItem(PKEY) || "{}")); }
     catch (_) { return { topics: {}, problems: {}, code: {} }; }
   }
-  function save() { try { localStorage.setItem(PKEY, JSON.stringify(store)); } catch (_) {} refreshGlobal(); scheduleFileSync(); }
+  function save() { try { localStorage.setItem(PKEY, JSON.stringify(store)); } catch (_) {} refreshGlobal(); markDirty(); }
   const isTopicDone = (id) => !!store.topics[id];
   const toggleTopic = (id) => { store.topics[id] ? delete store.topics[id] : (store.topics[id] = true); save(); };
   const problemState = (id) => store.problems[id] || null;
@@ -408,21 +408,46 @@
     try { localStorage.setItem(TKEY, next); } catch (_) {}
   };
 
-  // ---------- durable file sync (File System Access API — Chrome/Edge/Brave) ----------
-  // Auto-saves progress.json to a real file on disk. Firefox has no support for this API,
-  // so there it silently stays on localStorage + manual Export/Import.
+  // ---------- durable file + Save button (File System Access API — Chrome/Edge/Brave) ----------
+  // Progress is always cached in localStorage automatically. The Save button writes
+  // progress.json to a real file on disk; a running ./scripts/watch-backup.sh then makes
+  // exactly one Git commit per Save. Firefox has no File System Access API, so there Save
+  // downloads progress.json instead.
   const FS_SUPPORTED = typeof window.showOpenFilePicker === "function" && typeof window.showSaveFilePicker === "function";
   const HKEY = "prephub-handle";
   let fileHandle = null;
-  let syncTimer = null;
   let syncing = false;
+  let dirty = false;
+  let lastSavedAt = null;
 
-  const setSyncStatus = (txt, cls) => {
+  function fmtTime(d) { return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+
+  function refreshSyncUI() {
     const s = document.getElementById("syncStatus");
-    if (!s) return;
+    const saveBtn = document.getElementById("saveBtn");
+    if (!s || !saveBtn) return;
+    let txt, color = "";
+    if (dirty) {
+      txt = "● Unsaved changes"; color = "var(--warn)";
+      saveBtn.textContent = "Save";
+      saveBtn.classList.add("attn");
+    } else {
+      saveBtn.classList.remove("attn");
+      saveBtn.textContent = "Save";
+      if (fileHandle) {
+        txt = "Saved → " + fileHandle.name + (lastSavedAt ? " · " + fmtTime(lastSavedAt) : "");
+        color = "var(--ok)";
+      } else if (FS_SUPPORTED) {
+        txt = "Saved in this browser · Connect a file, then Save writes it to disk + Git";
+      } else {
+        txt = "Saved in this browser · Save downloads a progress.json backup (Firefox)";
+      }
+    }
     s.textContent = txt;
-    s.style.color = cls === "ok" ? "var(--ok)" : cls === "warn" ? "var(--warn)" : "";
-  };
+    s.style.color = color;
+  }
+  function markDirty() { dirty = true; refreshSyncUI(); }
+  function markClean() { dirty = false; lastSavedAt = new Date(); refreshSyncUI(); }
 
   // tiny IndexedDB wrapper just to persist the FileSystemFileHandle across reloads
   function idb(mode, fn) {
@@ -452,35 +477,60 @@
     store.code = Object.assign({}, store.code, d.code || {});
   }
 
+  const norm = (o) => {
+    const sortObj = (x) => Object.fromEntries(Object.keys(x || {}).sort().map((k) => [k, x[k]]));
+    return JSON.stringify({ topics: sortObj(o.topics), problems: sortObj(o.problems), code: sortObj(o.code) });
+  };
+
+  // returns true if the in-memory store ended up different from the file
+  // (i.e. this browser has changes not yet on disk — Save needed)
   async function loadFromHandle() {
     const file = await fileHandle.getFile();
     const text = (await file.text()).trim();
+    let fileSnapshot = norm({});
     if (text) {
-      try { mergeFromFileData(JSON.parse(text)); } catch (_) { /* keep local, will overwrite on next write */ }
+      try {
+        const d = JSON.parse(text);
+        fileSnapshot = norm(d);
+        mergeFromFileData(d);
+      } catch (_) { /* corrupt file: keep local, Save will overwrite it */ }
     }
     try { localStorage.setItem(PKEY, JSON.stringify(store)); } catch (_) {}
+    return norm(store) !== fileSnapshot;
+  }
+
+  function downloadProgress() {
+    const blob = new Blob([JSON.stringify(store, null, 2) + "\n"], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "progress.json"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   }
 
   async function writeToHandle() {
-    if (!fileHandle) return;
-    syncing = true; setSyncStatus("Saving…", "warn");
+    const w = await fileHandle.createWritable();
+    await w.write(JSON.stringify(store, null, 2) + "\n");
+    await w.close();
+  }
+
+  async function doSave() {
+    if (syncing) return;
+    syncing = true;
+    const s = document.getElementById("syncStatus");
+    if (s) { s.textContent = "Saving…"; s.style.color = "var(--warn)"; }
     try {
-      const w = await fileHandle.createWritable();
-      await w.write(JSON.stringify(store, null, 2) + "\n");
-      await w.close();
-      setSyncStatus("Saved → " + fileHandle.name, "ok");
+      if (fileHandle) {
+        if (!(await ensurePermission(fileHandle, true))) { refreshSyncUI(); return; }
+        await writeToHandle();
+      } else {
+        downloadProgress();
+      }
+      markClean();
     } catch (err) {
-      setSyncStatus("File save failed — using this browser only", "warn");
-      console.warn("progress file write failed", err);
+      console.warn("save failed", err);
+      if (s) { s.textContent = "Save failed — data is still in this browser"; s.style.color = "var(--err)"; }
     } finally {
       syncing = false;
     }
-  }
-
-  function scheduleFileSync() {
-    if (!fileHandle) return;
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => { if (!syncing) writeToHandle(); }, 700);
   }
 
   async function ensurePermission(handle, request) {
@@ -507,44 +557,50 @@
       }
       fileHandle = handle;
       await idbSet(HKEY, handle);
-      await loadFromHandle();
-      await writeToHandle();
+      await loadFromHandle();       // pull any progress already in the file
+      await writeToHandle();        // write back the merged result (explicit user action)
+      markClean();
       route();
       const btn = document.getElementById("connectFileBtn");
       if (btn) btn.textContent = "Change progress file";
     } catch (err) {
       if (err && err.name === "AbortError") return; // user cancelled the picker
       console.warn("connectFile failed", err);
-      setSyncStatus("Could not connect file", "warn");
+      const s = document.getElementById("syncStatus");
+      if (s) { s.textContent = "Could not connect file"; s.style.color = "var(--warn)"; }
     }
   }
 
   async function initFileSync() {
-    if (!FS_SUPPORTED) {
-      setSyncStatus("Saved in this browser · use Export to back up (Firefox)", "");
-      return;
-    }
+    const saveBtn = document.getElementById("saveBtn");
+    if (saveBtn) { saveBtn.hidden = false; saveBtn.onclick = doSave; }
+
+    if (!FS_SUPPORTED) { refreshSyncUI(); return; }
+
     const btn = document.getElementById("connectFileBtn");
     btn.hidden = false;
     btn.onclick = connectFile;
 
     const existing = await idbGet(HKEY).catch(() => null);
-    if (!existing) {
-      setSyncStatus("Saved in this browser · Connect a file for durable + Git backup", "");
-      return;
-    }
+    if (!existing) { refreshSyncUI(); return; }
+
     if (await ensurePermission(existing, false)) {
       fileHandle = existing;
-      await loadFromHandle();
-      await writeToHandle();
+      const drifted = await loadFromHandle();
+      drifted ? markDirty() : markClean();
       route();
       btn.textContent = "Change progress file";
     } else {
-      // handle remembered but browser needs a fresh user gesture to re-grant
-      setSyncStatus("Click “Reconnect progress file” to resume auto-save", "warn");
+      // handle remembered but the browser needs a fresh click to re-grant permission
+      const s = document.getElementById("syncStatus");
+      if (s) { s.textContent = "Click “Reconnect progress file” to point Save at your file again"; s.style.color = "var(--warn)"; }
       btn.textContent = "Reconnect progress file";
     }
   }
+
+  window.addEventListener("beforeunload", (e) => {
+    if (dirty && fileHandle) { e.preventDefault(); e.returnValue = ""; }
+  });
 
   // ---------- footer: export / import / reset ----------
   document.getElementById("exportBtn").onclick = () => {

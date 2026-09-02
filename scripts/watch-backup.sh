@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# Auto-commit on save. Run this in a terminal tab while you study:
+# Commit once per Save. Run this in a terminal tab while you study:
 #   ./scripts/watch-backup.sh
-# It watches for changes (progress.json written by the browser, edits to content, etc.)
-# and commits them automatically, debounced. Ctrl-C to stop.
+# The browser only writes progress.json when you click the Save button, so this makes
+# roughly one commit per Save (plus any content edits you make). Ctrl-C to stop.
+# If you'd rather commit by hand, skip this and run ./scripts/backup.sh when you want.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

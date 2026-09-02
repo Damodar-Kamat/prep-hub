@@ -50,6 +50,9 @@ main.wide{max-width:1400px}
   padding:16px;border-top:1px solid var(--border);color:var(--muted);font-size:.85rem}
 .link-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:.85rem;padding:0}
 .link-btn.danger{color:var(--err)}
+#saveBtn.attn{background:var(--accent);color:#fff;border-color:var(--accent)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+#saveBtn.attn{animation:pulse 1.6s ease-in-out infinite}
 
 /* cards / grid */
 .grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
