@@ -59,7 +59,7 @@
     const fn = p.fnName || "solution";
     if (lang === "python") return `def ${fn}(*args):\n    # TODO: implement\n    pass\n\n\nif __name__ == "__main__":\n    # call ${fn}(...) with the example inputs and print the result\n    pass\n`;
     if (lang === "cpp") return `#include <bits/stdc++.h>\nusing namespace std;\n\n// TODO: implement ${fn}\n\nint main() {\n    // call ${fn}(...) with the example inputs and print the result\n    return 0;\n}\n`;
-    if (lang === "java") return `import java.util.*;\n\npublic class Main {\n    // TODO: implement ${fn}\n\n    public static void main(String[] args) {\n        // call ${fn}(...) with the example inputs and print the result\n    }\n}\n`;
+    if (lang === "java") return `import java.util.*;\n\nclass Main {\n    // TODO: implement ${fn}\n\n    public static void main(String[] args) {\n        // call ${fn}(...) with the example inputs and print the result\n    }\n}\n`;
     return `function ${fn}() {\n  // TODO\n}\n`;
   }
 
@@ -425,16 +425,18 @@
       const res = await window.runRemote({ lang, code: ta.value });
       consoleBox.innerHTML = "";
       if (res.error) { consoleBox.appendChild(el(`<div class="result-banner fail">Error</div>`)); consoleBox.appendChild(el(`<pre style="margin:0">${esc(res.error)}</pre>`)); return; }
-      if (res.compileOutput) {
-        consoleBox.appendChild(el(`<div class="result-banner fail">Compile error</div>`));
-        consoleBox.appendChild(el(`<pre style="margin:0">${esc(res.compileOutput)}</pre>`));
-        return;
-      }
-      const bad = res.code !== 0 || res.signal;
-      consoleBox.appendChild(el(`<div class="result-banner ${bad ? "fail" : "pass"}">exit ${res.code}${res.signal ? " (" + res.signal + ")" : ""} · compare the output to the examples</div>`));
-      if (res.stdout) consoleBox.appendChild(el(`<div><span class="k">stdout:</span><pre style="margin:4px 0 0">${esc(res.stdout)}</pre></div>`));
+      const failed = res.code !== 0 || !!res.signal;
+      const compileFailed = failed && res.compileOutput && !res.stdout;
+      consoleBox.appendChild(el(`<div class="result-banner ${failed ? "fail" : "pass"}">${
+        compileFailed ? "Compile error"
+          : failed ? `exited ${res.code}${res.signal ? " (" + res.signal + ")" : ""}`
+          : "ran OK — compare the output to the examples"
+      }</div>`));
+      if (res.compileOutput) consoleBox.appendChild(el(`<div><span class="k">compiler:</span><pre style="margin:4px 0 0">${esc(res.compileOutput)}</pre></div>`));
+      if (res.stdout) consoleBox.appendChild(el(`<div style="margin-top:6px"><span class="k">stdout:</span><pre style="margin:4px 0 0">${esc(res.stdout)}</pre></div>`));
       if (res.stderr) consoleBox.appendChild(el(`<div style="margin-top:6px"><span class="k">stderr:</span><pre style="margin:4px 0 0">${esc(res.stderr)}</pre></div>`));
-      if (!res.stdout && !res.stderr) consoleBox.appendChild(el(`<span class="muted">(no output — did you print anything?)</span>`));
+      if (!res.compileOutput && !res.stdout && !res.stderr) consoleBox.appendChild(el(`<span class="muted">(no output — did your program print anything?)</span>`));
+      consoleBox.appendChild(el(`<div class="k" style="margin-top:6px">via wandbox · ${esc(res.compiler || lang)}</div>`));
     }
 
     btnEx.onclick = () => run(false);

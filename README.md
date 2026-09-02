@@ -34,7 +34,7 @@ Each concept topic has **★ Key points** (fast revision) and a deep **📖 Deep
 ### DSA Practice — languages
 
 - **JavaScript** runs **offline** in a sandboxed Web Worker and is **auto-graded** against the visible + hidden test cases (▶ Run examples / ✓ Submit).
-- **Java / Python / C++** compile and run on the public [Piston](https://github.com/engineer-man/piston) sandbox (`emkc.org`) — **needs internet**. The starter is a complete program with a `main()` that runs the example inputs; hit **▶ Run** and compare the printed output to the examples. The ✓ auto-grader is JavaScript-only.
+- **Java / Python / C++** compile and run on the public [Wandbox](https://wandbox.org) sandbox — **needs internet**. The starter is a complete program with a `main()` that runs the example inputs; hit **▶ Run** and compare the printed output to the examples. The ✓ auto-grader is JavaScript-only.
 - Your choice is remembered per browser (`prephub.lang`, default **Java**); code is saved **per problem per language**.
 
 ## How studying works

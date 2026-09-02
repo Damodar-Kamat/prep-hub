@@ -2,12 +2,13 @@
    JavaScript starters live in problems.js and are auto-graded locally.
    Java / Python / C++ starters below are COMPLETE runnable programs: a solution
    stub plus a main() that runs the visible example(s) and prints the result, so
-   you can hit Run (remote sandbox) and eyeball the output against the examples. */
+   you can hit Run (Wandbox sandbox) and eyeball the output against the examples.
+   Note: the Java class is package-private `class Main` (Wandbox compiles prog.java). */
 window.STUDY_STARTERS = {
   "two-sum": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int[] twoSum(int[] nums, int target) {
         // your code
 
@@ -48,7 +49,7 @@ int main() {
   "valid-anagram": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static boolean isAnagram(String s, String t) {
         // your code
         return false;
@@ -88,7 +89,7 @@ int main() {
   "contains-duplicate": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static boolean containsDuplicate(int[] nums) {
         // your code
         return false;
@@ -129,7 +130,7 @@ int main() {
   "best-time-stock": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int maxProfit(int[] prices) {
         // your code
         return 0;
@@ -169,7 +170,7 @@ int main() {
   "max-subarray": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int maxSubArray(int[] nums) {
         // your code
         return 0;
@@ -209,7 +210,7 @@ int main() {
   "valid-parentheses": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static boolean isValid(String s) {
         // your code
         return false;
@@ -252,7 +253,7 @@ int main() {
   "move-zeroes": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int[] moveZeroes(int[] nums) {
         // modify nums in place, then return it
         return nums;
@@ -292,7 +293,7 @@ int main() {
   "longest-substring": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int lengthOfLongestSubstring(String s) {
         // your code
         return 0;
@@ -334,7 +335,7 @@ int main() {
   "product-except-self": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int[] productExceptSelf(int[] nums) {
         // your code
         return new int[]{};
@@ -374,7 +375,7 @@ int main() {
   "top-k-frequent": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int[] topKFrequent(int[] nums, int k) {
         // your code (order of the answer doesn't matter)
         return new int[]{};
@@ -414,7 +415,7 @@ int main() {
   "binary-search": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int search(int[] nums, int target) {
         // your code — O(log n)
         return -1;
@@ -454,7 +455,7 @@ int main() {
   "search-rotated": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int search(int[] nums, int target) {
         // rotated sorted array — O(log n)
         return -1;
@@ -494,7 +495,7 @@ int main() {
   "climbing-stairs": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int climbStairs(int n) {
         // your code
         return 0;
@@ -536,7 +537,7 @@ int main() {
   "coin-change": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int coinChange(int[] coins, int amount) {
         // fewest coins to make amount, or -1
         return -1;
@@ -576,7 +577,7 @@ int main() {
   "house-robber": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int rob(int[] nums) {
         // your code
         return 0;
@@ -616,7 +617,7 @@ int main() {
   "num-islands": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int numIslands(char[][] grid) {
         // your code (you may mutate grid)
         return 0;
@@ -667,7 +668,7 @@ int main() {
   "valid-palindrome": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static boolean isPalindrome(String s) {
         // alphanumeric only, case-insensitive
         return false;
@@ -707,7 +708,7 @@ int main() {
   "three-sum": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static List<List<Integer>> threeSum(int[] nums) {
         // unique triplets summing to 0
         return new ArrayList<>();
@@ -751,7 +752,7 @@ int main() {
   "merge-intervals": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int[][] merge(int[][] intervals) {
         // merge overlapping intervals, sorted by start
         return new int[][]{};
@@ -791,7 +792,7 @@ int main() {
   "lcs": {
     java: `import java.util.*;
 
-public class Main {
+class Main {
     static int longestCommonSubsequence(String text1, String text2) {
         // your code
         return 0;
