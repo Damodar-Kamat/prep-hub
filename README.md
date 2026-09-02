@@ -26,10 +26,16 @@ No build step. Either:
 | **Low-Level Design** | 8 topics — LLD method + worked designs: parking lot, LRU/LFU, rate limiter, Splitwise, elevator, vending machine, concurrency patterns |
 | **System Design (HLD)** | 11 topics — framework, scaling, load balancing, caching, DB scaling, messaging, consistency/CAP/consensus, microservices/observability; worked: URL shortener, news feed, chat |
 | **Behavioral & Career** | STAR + story bank, common lead-level questions, offer evaluation & negotiation, a 10–12 week prep plan |
-| **DSA Practice** | 20 problems with a real in-browser JavaScript runner (example + hidden tests), concept tab, progressive hints, editorial |
+| **DSA Practice** | 20 problems · language selector (**Java** default, Python, C++, JavaScript) · concept tab, progressive hints, editorial |
 | **Last-Minute Prep** | Every topic's key points on one searchable page |
 
 Each concept topic has **★ Key points** (fast revision) and a deep **📖 Deep dive** — multi-section explanation, worked code, complexity analysis, comparison tables, an SVG diagram where it helps, common pitfalls, and likely interview questions.
+
+### DSA Practice — languages
+
+- **JavaScript** runs **offline** in a sandboxed Web Worker and is **auto-graded** against the visible + hidden test cases (▶ Run examples / ✓ Submit).
+- **Java / Python / C++** compile and run on the public [Piston](https://github.com/engineer-man/piston) sandbox (`emkc.org`) — **needs internet**. The starter is a complete program with a `main()` that runs the example inputs; hit **▶ Run** and compare the printed output to the examples. The ✓ auto-grader is JavaScript-only.
+- Your choice is remembered per browser (`prephub.lang`, default **Java**); code is saved **per problem per language**.
 
 ## How studying works
 

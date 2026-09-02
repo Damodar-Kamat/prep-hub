@@ -73,4 +73,72 @@
       worker.postMessage({ code, fnName, tests });
     });
   };
+
+  /* ---- Remote execution for Java / Python / C++ via the public Piston API ----
+     Runs the code AS A COMPLETE PROGRAM (the starter for these languages includes
+     a main / entry point that prints results). Needs internet. No automated
+     grading for these languages — the user compares printed output to the examples.
+     JavaScript keeps using the local worker above with full test-case checking. */
+  const PISTON = 'https://emkc.org/api/v2/piston';
+  const PISTON_LANG = {
+    java:       { language: 'java',       filename: 'Main.java' },
+    python:     { language: 'python',     filename: 'main.py' },
+    cpp:        { language: 'c++',        filename: 'main.cpp' },
+    javascript: { language: 'javascript', filename: 'main.js' },
+  };
+  let runtimesPromise = null;
+  function loadRuntimes() {
+    if (!runtimesPromise) {
+      runtimesPromise = fetch(PISTON + '/runtimes')
+        .then((r) => r.json())
+        .catch(() => null);
+    }
+    return runtimesPromise;
+  }
+  async function versionFor(pistonLang) {
+    const runtimes = await loadRuntimes();
+    if (!runtimes) return '*';
+    const match = runtimes.filter((rt) => rt.language === pistonLang || (rt.aliases || []).includes(pistonLang));
+    return match.length ? match[match.length - 1].version : '*';
+  }
+
+  window.runRemote = async function ({ lang, code, stdin = '' }) {
+    const cfg = PISTON_LANG[lang];
+    if (!cfg) return { error: 'Unsupported language: ' + lang };
+    let version;
+    try {
+      version = await versionFor(cfg.language);
+    } catch (_) {
+      return { error: 'Could not reach the code-execution service. Check your internet connection (Java/Python/C++ need it).' };
+    }
+    try {
+      const res = await fetch(PISTON + '/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          language: cfg.language,
+          version,
+          files: [{ name: cfg.filename, content: code }],
+          stdin,
+          compile_timeout: 10000,
+          run_timeout: 5000,
+        }),
+      });
+      if (res.status === 429) return { error: 'Rate limited by the public execution service — wait a few seconds and try again.' };
+      if (!res.ok) return { error: 'Execution service returned HTTP ' + res.status };
+      const data = await res.json();
+      const compile = data.compile || {};
+      const run = data.run || {};
+      return {
+        compileOutput: (compile.stderr || compile.output || '').trim(),
+        stdout: (run.stdout || '').trim(),
+        stderr: (run.stderr || '').trim(),
+        code: run.code,
+        signal: run.signal,
+        version: data.version,
+      };
+    } catch (err) {
+      return { error: 'Could not reach the code-execution service (' + err.message + '). Java/Python/C++ need internet; JavaScript runs offline.' };
+    }
+  };
 })();

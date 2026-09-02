@@ -8,16 +8,28 @@
   const TKEY = "prephub.theme";
 
   // ---------- progress store ----------
+  const LKEY = "prephub.lang";
+  const LANGS = [["java", "Java"], ["python", "Python"], ["cpp", "C++"], ["javascript", "JavaScript"]];
   const store = load();
   function load() {
-    try { return Object.assign({ topics: {}, problems: {}, code: {} }, JSON.parse(localStorage.getItem(PKEY) || "{}")); }
-    catch (_) { return { topics: {}, problems: {}, code: {} }; }
+    let s;
+    try { s = Object.assign({ topics: {}, problems: {}, code: {} }, JSON.parse(localStorage.getItem(PKEY) || "{}")); }
+    catch (_) { s = { topics: {}, problems: {}, code: {} }; }
+    // migrate: code[pid] used to be a plain JS string; now it's { lang: source }
+    for (const pid of Object.keys(s.code || {})) {
+      if (typeof s.code[pid] === "string") s.code[pid] = { javascript: s.code[pid] };
+    }
+    return s;
   }
   function save() { try { localStorage.setItem(PKEY, JSON.stringify(store)); } catch (_) {} refreshGlobal(); markDirty(); }
   const isTopicDone = (id) => !!store.topics[id];
   const toggleTopic = (id) => { store.topics[id] ? delete store.topics[id] : (store.topics[id] = true); save(); };
   const problemState = (id) => store.problems[id] || null;
   const setProblem = (id, s) => { s ? (store.problems[id] = s) : delete store.problems[id]; save(); };
+  const getLang = () => { try { return localStorage.getItem(LKEY) || "java"; } catch (_) { return "java"; } };
+  const setLang = (l) => { try { localStorage.setItem(LKEY, l); } catch (_) {} };
+  const codeFor = (pid, lang) => (store.code[pid] && store.code[pid][lang] != null) ? store.code[pid][lang] : null;
+  const setCodeFor = (pid, lang, val) => { (store.code[pid] || (store.code[pid] = {}))[lang] = val; save(); };
 
   const allTopics = () => SECTIONS.flatMap(s => s.topics.map(t => ({ ...t, sid: s.id, section: s.title })));
   function sectionStats(s) {
@@ -42,6 +54,14 @@
   }
   function chk(done) { return `<span class="chk ${done ? "on" : ""}">${done ? "✓" : ""}</span>`; }
   function diffPill(d) { return `<span class="pill ${d.toLowerCase()}">${d}</span>`; }
+  // fallback starter when a problem doesn't ship a language-specific one
+  function genericStarter(p, lang) {
+    const fn = p.fnName || "solution";
+    if (lang === "python") return `def ${fn}(*args):\n    # TODO: implement\n    pass\n\n\nif __name__ == "__main__":\n    # call ${fn}(...) with the example inputs and print the result\n    pass\n`;
+    if (lang === "cpp") return `#include <bits/stdc++.h>\nusing namespace std;\n\n// TODO: implement ${fn}\n\nint main() {\n    // call ${fn}(...) with the example inputs and print the result\n    return 0;\n}\n`;
+    if (lang === "java") return `import java.util.*;\n\npublic class Main {\n    // TODO: implement ${fn}\n\n    public static void main(String[] args) {\n        // call ${fn}(...) with the example inputs and print the result\n    }\n}\n`;
+    return `function ${fn}() {\n  // TODO\n}\n`;
+  }
 
   // ---------- tabs ----------
   const TABS = [
@@ -317,26 +337,69 @@
 
     // RIGHT
     const right = el(`<div class="pw-right"></div>`);
-    const savedCode = store.code[p.id];
-    const editor = el(`<div class="pw-editor">
-      <textarea spellcheck="false">${esc(savedCode || p.starter || "")}</textarea>
+    let lang = getLang();
+    const starterFor = (l) => {
+      const ext = window.STUDY_STARTERS && window.STUDY_STARTERS[p.id];
+      if (ext && ext[l] != null) return ext[l];
+      if (p.starters && p.starters[l] != null) return p.starters[l];
+      return l === "javascript" ? (p.starter || "") : genericStarter(p, l);
+    };
+
+    const langBar = el(`<div class="pw-langbar">
+      <label>Language
+        <select id="langSel">${LANGS.map(([v, n]) => `<option value="${v}"${v === lang ? " selected" : ""}>${n}</option>`).join("")}</select>
+      </label>
+      <span class="muted lang-note"></span>
     </div>`);
+    const langSel = langBar.querySelector("#langSel");
+    const langNote = langBar.querySelector(".lang-note");
+
+    const editor = el(`<div class="pw-editor"><textarea spellcheck="false"></textarea></div>`);
     const ta = editor.querySelector("textarea");
     ta.addEventListener("keydown", (e) => {
       if (e.key === "Tab") { e.preventDefault(); const s = ta.selectionStart; ta.value = ta.value.slice(0, s) + "  " + ta.value.slice(ta.selectionEnd); ta.selectionStart = ta.selectionEnd = s + 2; }
     });
-    ta.addEventListener("input", () => { store.code[p.id] = ta.value; save(); });
+    ta.addEventListener("input", () => setCodeFor(p.id, lang, ta.value));
 
     const toolbar = el(`<div class="pw-toolbar">
       <button class="btn" data-run="ex">▶ Run examples</button>
       <button class="btn primary" data-run="all">✓ Submit (all tests)</button>
       <button class="btn" data-reset>Reset code</button>
-      <span class="muted" style="margin-left:auto">fn: <code>${esc(p.fnName)}</code></span>
+      <span class="muted toolbar-hint" style="margin-left:auto"></span>
     </div>`);
     const consoleBox = el(`<div class="pw-console"><span class="muted">Run your code to see results.</span></div>`);
-    right.appendChild(editor); right.appendChild(toolbar); right.appendChild(consoleBox);
+    right.appendChild(langBar); right.appendChild(editor); right.appendChild(toolbar); right.appendChild(consoleBox);
+
+    const btnEx = toolbar.querySelector('[data-run=ex]');
+    const btnAll = toolbar.querySelector('[data-run=all]');
+    const hint = toolbar.querySelector('.toolbar-hint');
+
+    function loadLangIntoEditor() {
+      ta.value = codeFor(p.id, lang) != null ? codeFor(p.id, lang) : starterFor(lang);
+      const isJs = lang === "javascript";
+      btnEx.textContent = isJs ? "▶ Run examples" : "▶ Run";
+      btnAll.hidden = !isJs;
+      hint.innerHTML = isJs
+        ? `graded locally · fn: <code>${esc(p.fnName)}</code>`
+        : `runs on a public sandbox (needs internet) · check output vs the examples`;
+      langNote.textContent = isJs
+        ? "JavaScript runs offline and is auto-graded against hidden tests."
+        : "Java/Python/C++ compile & run remotely; the ✓ grader is JavaScript-only.";
+    }
+    langSel.addEventListener("change", () => {
+      setCodeFor(p.id, lang, ta.value);      // persist current buffer
+      lang = langSel.value;
+      setLang(lang);
+      loadLangIntoEditor();
+      consoleBox.innerHTML = `<span class="muted">Run your code to see results.</span>`;
+    });
 
     async function run(all) {
+      if (lang === "javascript") return runJs(all);
+      return runRemote();
+    }
+
+    async function runJs(all) {
       const tests = (all ? p.tests : p.tests.filter(t => !t.hidden)).map(t => ({ ...t, hidden: all ? t.hidden : false }));
       consoleBox.innerHTML = `<span class="muted">Running ${tests.length} case(s)…</span>`;
       const res = await window.runSolution({ code: ta.value, fnName: p.fnName, tests });
@@ -356,9 +419,33 @@
       if (res.logs && res.logs.length) consoleBox.appendChild(el(`<div style="margin-top:8px"><span class="k">console:</span><pre style="margin:4px 0 0">${esc(res.logs.join("\n"))}</pre></div>`));
       if (okAll && all) { setProblem(p.id, "solved"); draw(); }
     }
-    toolbar.querySelector('[data-run=ex]').onclick = () => run(false);
-    toolbar.querySelector('[data-run=all]').onclick = () => run(true);
-    toolbar.querySelector('[data-reset]').onclick = () => { if (confirm("Reset editor to starter code?")) { ta.value = p.starter || ""; store.code[p.id] = ta.value; save(); } };
+
+    async function runRemote() {
+      consoleBox.innerHTML = `<span class="muted">Compiling &amp; running remotely…</span>`;
+      const res = await window.runRemote({ lang, code: ta.value });
+      consoleBox.innerHTML = "";
+      if (res.error) { consoleBox.appendChild(el(`<div class="result-banner fail">Error</div>`)); consoleBox.appendChild(el(`<pre style="margin:0">${esc(res.error)}</pre>`)); return; }
+      if (res.compileOutput) {
+        consoleBox.appendChild(el(`<div class="result-banner fail">Compile error</div>`));
+        consoleBox.appendChild(el(`<pre style="margin:0">${esc(res.compileOutput)}</pre>`));
+        return;
+      }
+      const bad = res.code !== 0 || res.signal;
+      consoleBox.appendChild(el(`<div class="result-banner ${bad ? "fail" : "pass"}">exit ${res.code}${res.signal ? " (" + res.signal + ")" : ""} · compare the output to the examples</div>`));
+      if (res.stdout) consoleBox.appendChild(el(`<div><span class="k">stdout:</span><pre style="margin:4px 0 0">${esc(res.stdout)}</pre></div>`));
+      if (res.stderr) consoleBox.appendChild(el(`<div style="margin-top:6px"><span class="k">stderr:</span><pre style="margin:4px 0 0">${esc(res.stderr)}</pre></div>`));
+      if (!res.stdout && !res.stderr) consoleBox.appendChild(el(`<span class="muted">(no output — did you print anything?)</span>`));
+    }
+
+    btnEx.onclick = () => run(false);
+    btnAll.onclick = () => run(true);
+    toolbar.querySelector('[data-reset]').onclick = () => {
+      if (confirm("Reset the " + LANGS.find(x => x[0] === lang)[1] + " editor to the starter code?")) {
+        ta.value = starterFor(lang);
+        setCodeFor(p.id, lang, ta.value);
+      }
+    };
+    loadLangIntoEditor();
 
     pw.appendChild(left); pw.appendChild(right);
 
@@ -471,16 +558,27 @@
   function mergeFromFileData(d) {
     if (!d || typeof d !== "object") return;
     // Union so connecting a file never silently drops a tick made in this browser.
-    // Topics/problems: keep if set in either place. Code: file wins when it has an entry.
     store.topics = Object.assign({}, store.topics, d.topics || {});
     store.problems = Object.assign({}, store.problems, d.problems || {});
-    store.code = Object.assign({}, store.code, d.code || {});
+    // code is nested { pid: { lang: source } } — deep-merge so per-language solutions aren't lost
+    const mergedCode = Object.assign({}, store.code);
+    for (const [pid, langs] of Object.entries(d.code || {})) {
+      const norm = typeof langs === "string" ? { javascript: langs } : langs;
+      mergedCode[pid] = Object.assign({}, mergedCode[pid], norm);
+    }
+    store.code = mergedCode;
   }
 
-  const norm = (o) => {
-    const sortObj = (x) => Object.fromEntries(Object.keys(x || {}).sort().map((k) => [k, x[k]]));
-    return JSON.stringify({ topics: sortObj(o.topics), problems: sortObj(o.problems), code: sortObj(o.code) });
+  const deepSort = (x) => {
+    if (Array.isArray(x)) return x.map(deepSort);
+    if (x && typeof x === "object") {
+      const out = {};
+      for (const k of Object.keys(x).sort()) out[k] = deepSort(x[k]);
+      return out;
+    }
+    return x;
   };
+  const norm = (o) => JSON.stringify(deepSort({ topics: o.topics || {}, problems: o.problems || {}, code: o.code || {} }));
 
   // returns true if the in-memory store ended up different from the file
   // (i.e. this browser has changes not yet on disk — Save needed)
