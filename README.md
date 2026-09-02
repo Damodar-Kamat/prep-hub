@@ -33,7 +33,44 @@ No build step. Either:
 
 - Each topic has **★ Key points** (fast brush-up) and **📖 Deep dive** (full explanation, code, diagrams, pitfalls, likely interview questions).
 - Tick the checkbox when a topic is solid.
-- Progress + your problem code are stored in this browser's `localStorage`. Use **Export progress** in the footer to back it up (import it on another machine).
+- Progress + your problem code are always cached in the browser's `localStorage`.
+
+## Not losing your data
+
+### Durable file (Chrome / Edge / Brave)
+
+The footer has **Connect progress file**. Click it once and pick `progress.json` in this
+folder. From then on the app **auto-saves to that real file on disk** (debounced, ~1s) on
+every checkbox tick and code edit, and reloads from it on startup. The footer shows
+`Saved → progress.json` when it's active.
+
+- The browser remembers the file across restarts. After a full browser restart it may need
+  one click on **Reconnect progress file** (a browser security requirement for a fresh
+  file-permission grant).
+- Firefox does **not** support this API, so on Firefox the app stays on `localStorage` and
+  you use **Export / Import** in the footer to move data. (This was a deliberate call — the
+  feature can't be built for Firefox.)
+
+### Git auto-backup
+
+`progress.json` is tracked in this git repo. Two scripts:
+
+```
+./scripts/watch-backup.sh      # run in a terminal tab while studying — auto-commits changes (every 15s, or on fs events if `fswatch` is installed)
+./scripts/backup.sh            # one-shot: commit right now if there's anything to commit
+```
+
+So the flow is: **Connect progress file** in the browser → run `./scripts/watch-backup.sh`
+→ study. Every change lands in `progress.json` and gets committed automatically with a
+timestamp. Your history accumulates; roll back with normal `git` if you ever need to.
+
+For off-machine backup, add a private remote and push (or just keep the folder in
+iCloud/Dropbox):
+
+```
+git remote add origin <your-private-repo-url>
+git push -u origin main
+```
 
 ## Extending
 
