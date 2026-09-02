@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prep Hub — Interview Study Workspace</title>
+<link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="brand" data-nav="#/">📚 Prep&nbsp;Hub</div>
+  <nav class="tabs" id="tabs"></nav>
+  <div class="topbar-right">
+    <span class="streak" id="globalProgress" title="Overall completion">0%</span>
+    <button class="icon-btn" id="themeToggle" title="Toggle theme">◐</button>
+  </div>
+</header>
+
+<main id="view"></main>
+
+<footer class="footer">
+  <span id="syncStatus" title="Where your progress is being saved">Saved in this browser</span>
+  <button class="link-btn" id="connectFileBtn" hidden>Connect progress file</button>
+  <button class="link-btn" id="exportBtn">Export progress</button>
+  <button class="link-btn" id="importBtn">Import</button>
+  <button class="link-btn danger" id="resetBtn">Reset all</button>
+  <input type="file" id="importFile" accept="application/json" hidden />
+</footer>
+
+<!-- data -->
+<script src="data/dsa-concepts.js"></script>
+<script src="data/cs-fundamentals.js"></script>
+<script src="data/hardware.js"></script>
+<script src="data/lld.js"></script>
+<script src="data/hld.js"></script>
+<script src="data/behavioral.js"></script>
+<script src="data/problems.js"></script>
+<!-- app -->
+<script src="assets/js/runner.js"></script>
+<script src="assets/js/core.js"></script>
+</body>
+</html>
