@@ -20,14 +20,16 @@ No build step. Either:
 | Tab | Contents |
 | --- | --- |
 | **Dashboard** | Progress overview per section |
-| **DSA Concepts** | 13 topics — Big-O, arrays, hashing, two pointers, stacks, linked lists, recursion, trees, heaps, graphs, DP, sorting/binary search, tries/DSU/bits |
-| **CS Fundamentals** | OOP, SOLID, design patterns, OS (processes, scheduling, memory, deadlock), DBMS (normalization, indexing/transactions, SQL vs NoSQL), networking (TCP/IP, HTTP/DNS) |
-| **Computer Hardware** | CPU & pipelining, memory hierarchy & caches, number representation, storage (HDD/SSD/RAID), I/O & interrupts |
-| **Low-Level Design** | LLD method + worked designs: parking lot, LRU/LFU, rate limiter, Splitwise, concurrency patterns |
-| **System Design (HLD)** | Framework, scaling, load balancing, caching, DB scaling, messaging, consistency/CAP, microservices; worked: URL shortener, news feed |
-| **Behavioral & Career** | STAR + story bank, common questions, negotiation, a 10–12 week prep plan |
-| **DSA Practice** | 20 problems with a real in-browser JavaScript runner (example + hidden tests), concept tab, hints, editorial |
+| **DSA Concepts** | 13 topics — Big-O, arrays, hashing, two pointers, stacks, linked lists, recursion, trees, heaps, graphs, DP, sorting/binary search, tries/DSU/Fenwick/bits |
+| **CS Fundamentals** | 12 topics — OOP, SOLID, design patterns, OS (processes, scheduling, memory, deadlock), DBMS (normalization, indexing/transactions, SQL vs NoSQL/CAP), networking (TCP/IP, HTTP/DNS) |
+| **Computer Hardware** | 5 topics — CPU & pipelining, memory hierarchy & caches, number representation & floats, storage (HDD/SSD/RAID), I/O / interrupts / DMA / syscalls |
+| **Low-Level Design** | 8 topics — LLD method + worked designs: parking lot, LRU/LFU, rate limiter, Splitwise, elevator, vending machine, concurrency patterns |
+| **System Design (HLD)** | 11 topics — framework, scaling, load balancing, caching, DB scaling, messaging, consistency/CAP/consensus, microservices/observability; worked: URL shortener, news feed, chat |
+| **Behavioral & Career** | STAR + story bank, common lead-level questions, offer evaluation & negotiation, a 10–12 week prep plan |
+| **DSA Practice** | 20 problems with a real in-browser JavaScript runner (example + hidden tests), concept tab, progressive hints, editorial |
 | **Last-Minute Prep** | Every topic's key points on one searchable page |
+
+Each concept topic has **★ Key points** (fast revision) and a deep **📖 Deep dive** — multi-section explanation, worked code, complexity analysis, comparison tables, an SVG diagram where it helps, common pitfalls, and likely interview questions.
 
 ## How studying works
 
