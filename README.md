@@ -20,13 +20,14 @@ No build step. Either:
 | Tab | Contents |
 | --- | --- |
 | **Dashboard** | Progress overview per section |
+| **DSA Plan** | The 150-problem NeetCode-style roadmap in study order, per-problem recall rating, spaced-repetition review queue, day-streak + activity heatmap. **Start here.** |
 | **DSA Concepts** | 13 topics — Big-O, arrays, hashing, two pointers, stacks, linked lists, recursion, trees, heaps, graphs, DP, sorting/binary search, tries/DSU/Fenwick/bits |
 | **CS Fundamentals** | 12 topics — OOP, SOLID, design patterns, OS (processes, scheduling, memory, deadlock), DBMS (normalization, indexing/transactions, SQL vs NoSQL/CAP), networking (TCP/IP, HTTP/DNS) |
 | **Computer Hardware** | 5 topics — CPU & pipelining, memory hierarchy & caches, number representation & floats, storage (HDD/SSD/RAID), I/O / interrupts / DMA / syscalls |
 | **Low-Level Design** | 8 topics — LLD method + worked designs: parking lot, LRU/LFU, rate limiter, Splitwise, elevator, vending machine, concurrency patterns |
 | **System Design (HLD)** | 11 topics — framework, scaling, load balancing, caching, DB scaling, messaging, consistency/CAP/consensus, microservices/observability; worked: URL shortener, news feed, chat |
 | **Behavioral & Career** | STAR + story bank, common lead-level questions, offer evaluation & negotiation, a 10–12 week prep plan |
-| **DSA Practice** | 20 problems · language selector (**Java** default, Python, C++, JavaScript) · concept tab, progressive hints, editorial |
+| **DSA Practice** | 40 problems · language selector (**Java** default, Python, C++, JavaScript) · concept tab, progressive hints, editorial |
 | **Last-Minute Prep** | Every topic's key points on one searchable page |
 
 Each concept topic has **★ Key points** (fast revision) and a deep **📖 Deep dive** — multi-section explanation, worked code, complexity analysis, comparison tables, an SVG diagram where it helps, common pitfalls, and likely interview questions.
@@ -36,6 +37,15 @@ Each concept topic has **★ Key points** (fast revision) and a deep **📖 Deep
 - **JavaScript** runs **offline** in a sandboxed Web Worker and is **auto-graded** against the visible + hidden test cases (▶ Run examples / ✓ Submit).
 - **Java / Python / C++** compile and run on the public [Wandbox](https://wandbox.org) sandbox — **needs internet**. The starter is a complete program with a `main()` that runs the example inputs; hit **▶ Run** and compare the printed output to the examples. The ✓ auto-grader is JavaScript-only.
 - Your choice is remembered per browser (`prephub.lang`, default **Java**); code is saved **per problem per language**.
+
+## How to actually master DSA (the method)
+
+Open the **DSA Plan** tab and work the patterns in order. One resource, ~45 min a day, don't break the streak.
+
+**Per problem:** brute force → set a 25-min timer → if stuck, study the editorial, then
+**re-implement from a blank file** → rate your recall (😖 bombed / 🤔 shaky / ✅ got it).
+Shaky/bombed problems auto-schedule a review in 2–3 days; "got it" twice = mastered.
+The **Due for review** panel and the streak counter keep it compounding instead of leaking.
 
 ## How studying works
 
