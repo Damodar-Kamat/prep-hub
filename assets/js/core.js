@@ -13,8 +13,10 @@
   const store = load();
   function load() {
     let s;
-    try { s = Object.assign({ topics: {}, problems: {}, code: {} }, JSON.parse(localStorage.getItem(PKEY) || "{}")); }
-    catch (_) { s = { topics: {}, problems: {}, code: {} }; }
+    try { s = Object.assign({ topics: {}, problems: {}, code: {}, plan: {}, activity: {} }, JSON.parse(localStorage.getItem(PKEY) || "{}")); }
+    catch (_) { s = { topics: {}, problems: {}, code: {}, plan: {}, activity: {} }; }
+    s.plan = s.plan || {};
+    s.activity = s.activity || {};
     // migrate: code[pid] used to be a plain JS string; now it's { lang: source }
     for (const pid of Object.keys(s.code || {})) {
       if (typeof s.code[pid] === "string") s.code[pid] = { javascript: s.code[pid] };
@@ -30,6 +32,50 @@
   const setLang = (l) => { try { localStorage.setItem(LKEY, l); } catch (_) {} };
   const codeFor = (pid, lang) => (store.code[pid] && store.code[pid][lang] != null) ? store.code[pid][lang] : null;
   const setCodeFor = (pid, lang, val) => { (store.code[pid] || (store.code[pid] = {}))[lang] = val; save(); };
+
+  // ---------- study plan / spaced repetition ----------
+  const ROADMAP = (window.STUDY_ROADMAP && window.STUDY_ROADMAP.groups) || [];
+  const ROADMAP_PROBLEMS = ROADMAP.flatMap(g => g.problems.map(p => ({ ...p, groupId: g.id, groupName: g.name })));
+  const REVIEW_DAYS = { bombed: 2, shaky: 3, got: 10 };
+  const pad2 = (n) => String(n).padStart(2, "0");
+  const ymd = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  const todayYMD = () => ymd(new Date());
+  const addDaysYMD = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return ymd(d); };
+  const planEntry = (pid) => store.plan[pid] || null;
+  function bumpActivity() {
+    const t = todayYMD();
+    store.activity[t] = (store.activity[t] || 0) + 1;
+  }
+  function ratePlan(pid, rating) {
+    const e = store.plan[pid] || { got: 0 };
+    e.r = rating;
+    e.ts = Date.now();
+    if (rating === "got") {
+      e.got = (e.got || 0) + 1;
+      e.due = e.got >= 2 ? null : addDaysYMD(REVIEW_DAYS.got);   // mastered after 2 clean recalls
+    } else {
+      e.got = 0;
+      e.due = addDaysYMD(REVIEW_DAYS[rating]);
+    }
+    store.plan[pid] = e;
+    bumpActivity();
+    save();
+  }
+  function clearPlan(pid) { delete store.plan[pid]; save(); }
+  const isMastered = (pid) => { const e = store.plan[pid]; return !!(e && e.got >= 2 && e.due == null); };
+  function currentStreak() {
+    let n = 0;
+    const d = new Date();
+    if (!store.activity[ymd(d)]) d.setDate(d.getDate() - 1);   // today not done yet ⇒ count from yesterday
+    while (store.activity[ymd(d)]) { n++; d.setDate(d.getDate() - 1); }
+    return n;
+  }
+  function dueProblems() {
+    const t = todayYMD();
+    return ROADMAP_PROBLEMS
+      .filter(p => { const e = store.plan[p.id]; return e && e.due && e.due <= t; })
+      .sort((a, b) => (store.plan[a.id].due < store.plan[b.id].due ? -1 : 1));
+  }
 
   const allTopics = () => SECTIONS.flatMap(s => s.topics.map(t => ({ ...t, sid: s.id, section: s.title })));
   function sectionStats(s) {
@@ -67,6 +113,7 @@
   const TABS = [
     ["#/", "Dashboard"],
     ...SECTIONS.map(s => ["#/section/" + s.id, s.title]),
+    ...(ROADMAP.length ? [["#/plan", "DSA Plan"]] : []),
     ["#/practice", "DSA Practice"],
     ["#/cram", "Last-Minute Prep"],
   ];
@@ -105,9 +152,20 @@
       </div>`);
       grid.appendChild(c);
     });
+    if (ROADMAP_PROBLEMS.length) {
+      const att = ROADMAP_PROBLEMS.filter(x => planEntry(x.id)).length;
+      const streak = currentStreak();
+      const due = dueProblems().length;
+      grid.appendChild(el(`<div class="card section-card" data-nav="#/plan">
+        <div class="big">🗺️</div><h3>DSA Mastery Plan</h3>
+        <p class="muted">The 150-problem curriculum, in order, with spaced-repetition review and a streak. Start here.</p>
+        <div class="muted">🔥 ${streak}-day streak · ${att}/${ROADMAP_PROBLEMS.length} attempted${due ? ` · ${due} due` : ""}</div>
+        <div class="progress-bar"><i style="width:${att / ROADMAP_PROBLEMS.length * 100}%"></i></div>
+      </div>`));
+    }
     const pc = el(`<div class="card section-card" data-nav="#/practice">
       <div class="big">🧑‍💻</div><h3>DSA Practice</h3>
-      <p class="muted">Solve problems in-browser with example cases, hidden tests, hints, editorial and linked concepts.</p>
+      <p class="muted">Solve problems in-browser (Java / Python / C++ / JS) with example + hidden tests, hints, editorial.</p>
       <div class="muted">${pd}/${PROBLEMS.length} solved</div>
       <div class="progress-bar"><i style="width:${PROBLEMS.length ? pd / PROBLEMS.length * 100 : 0}%"></i></div>
     </div>`);
@@ -463,6 +521,152 @@
     return wrap;
   }
 
+  // ---------- study plan ----------
+  function vPlan() {
+    const wrap = el(`<div></div>`);
+    const total = ROADMAP_PROBLEMS.length;
+
+    wrap.appendChild(el(`<h1>DSA Mastery Plan</h1>`));
+    wrap.appendChild(el(`<div class="brushup-box" style="background:var(--panel);border-color:var(--border)">
+      <b>The method</b> — one resource, 45 min a day, patterns in order.
+      Per problem: brute force → 25 min timer → if stuck, study the editorial, then
+      <b>re-implement from a blank file</b> → rate your recall below. Re-do "shaky"/"bombed"
+      in a few days (they'll appear in <i>Due for review</i>). Don't break the streak.
+      <a href="#/topic/career/career-plan?m=deep" style="display:inline-block;margin-top:6px">Full plan &amp; schedule →</a>
+    </div>`));
+
+    // ---- stats row ----
+    const attempted = ROADMAP_PROBLEMS.filter(p => planEntry(p.id)).length;
+    const mastered = ROADMAP_PROBLEMS.filter(p => isMastered(p.id)).length;
+    const due = dueProblems();
+    const streak = currentStreak();
+    const doneToday = !!store.activity[todayYMD()];
+    const stats = el(`<div class="plan-stats">
+      <div class="plan-stat"><b>${streak}</b><span>🔥 day streak${streak && !doneToday ? " · do one today!" : ""}</span></div>
+      <div class="plan-stat"><b>${attempted}/${total}</b><span>attempted</span></div>
+      <div class="plan-stat"><b>${mastered}</b><span>mastered ✅</span></div>
+      <div class="plan-stat ${due.length ? "hot" : ""}"><b>${due.length}</b><span>due for review</span></div>
+    </div>`);
+    wrap.appendChild(stats);
+    wrap.appendChild(el(`<div class="progress-bar" style="margin:4px 0 18px"><i style="width:${total ? attempted / total * 100 : 0}%"></i></div>`));
+
+    // ---- activity heatmap (last 13 weeks) ----
+    wrap.appendChild(heatmap());
+
+    // ---- due for review ----
+    if (due.length) {
+      const box = el(`<div class="card" style="border-color:var(--warn);margin:16px 0"><h3 style="margin-top:0">🔁 Due for review — ${due.length}</h3></div>`);
+      due.slice(0, 40).forEach(p => box.appendChild(planRow(p, redraw)));
+      if (due.length > 40) box.appendChild(el(`<p class="muted">…and ${due.length - 40} more.</p>`));
+      wrap.appendChild(box);
+    }
+
+    // ---- toolbar ----
+    const bar = el(`<div class="toolbar">
+      <input type="search" placeholder="Filter problems…"/>
+      <label class="muted"><input type="checkbox" class="hide-mastered"/> hide mastered</label>
+      <label class="muted"><input type="checkbox" class="only-local"/> only in-app runnable</label>
+    </div>`);
+    wrap.appendChild(bar);
+
+    const groupsWrap = el(`<div></div>`);
+    wrap.appendChild(groupsWrap);
+
+    function drawGroups() {
+      const qf = bar.querySelector("input[type=search]").value.toLowerCase();
+      const hm = bar.querySelector(".hide-mastered").checked;
+      const ol = bar.querySelector(".only-local").checked;
+      groupsWrap.innerHTML = "";
+      ROADMAP.forEach((g, gi) => {
+        let probs = g.problems.filter(p => {
+          if (qf && !p.title.toLowerCase().includes(qf)) return false;
+          if (hm && isMastered(p.id)) return false;
+          if (ol && !(p.local && PROBLEMS.some(x => x.id === p.local))) return false;
+          return true;
+        });
+        if (!probs.length) return;
+        const att = g.problems.filter(p => planEntry(p.id)).length;
+        const mas = g.problems.filter(p => isMastered(p.id)).length;
+        const det = el(`<details class="plan-group"${(qf || att < g.problems.length) && gi < 6 ? " open" : ""}>
+          <summary>
+            <span class="pg-name">${gi + 1}. ${esc(g.name)}</span>
+            <span class="pg-count muted">${att}/${g.problems.length} attempted · ${mas} mastered</span>
+          </summary>
+          <p class="muted pg-note">${esc(g.note || "")} ${g.concept ? `<a href="${g.concept}">concept →</a>` : ""}</p>
+        </details>`);
+        probs.forEach(p => det.appendChild(planRow(p, redraw)));
+        groupsWrap.appendChild(det);
+      });
+      if (!groupsWrap.children.length) groupsWrap.appendChild(el(`<p class="muted">Nothing matches.</p>`));
+    }
+    bar.querySelectorAll("input").forEach(x => { x.oninput = drawGroups; x.onchange = drawGroups; });
+    drawGroups();
+
+    function redraw() { go("#/plan"); route(); }   // simplest: re-render after a rating
+    return wrap;
+  }
+
+  function planRow(p, onChange) {
+    const e = planEntry(p.id);
+    const t = todayYMD();
+    const overdue = e && e.due && e.due < t;
+    const dueToday = e && e.due === t;
+    const row = el(`<div class="topic-row plan-row ${isMastered(p.id) ? "mastered" : ""}">
+      <span class="rate">
+        <button data-r="bombed" class="${e && e.r === "bombed" ? "on" : ""}" title="Bombed — couldn't do it">😖</button>
+        <button data-r="shaky" class="${e && e.r === "shaky" ? "on" : ""}" title="Shaky — needed the editorial">🤔</button>
+        <button data-r="got" class="${e && e.r === "got" ? "on" : ""}" title="Got it — solved it cleanly">✅</button>
+      </span>
+      <span class="t-title">${esc(p.title)}</span>
+      ${diffPill(p.diff)}
+      ${isMastered(p.id) ? `<span class="pill easy">mastered</span>`
+        : e && e.due ? `<span class="pill ${overdue ? "hard" : dueToday ? "medium" : ""}" title="next review">${overdue ? "overdue" : dueToday ? "review today" : "review " + e.due.slice(5)}</span>`
+        : ""}
+      <span class="row-links">
+        ${p.local && PROBLEMS.some(x => x.id === p.local) ? `<a href="#/problem/${p.local}" title="Solve in-app">▶ solve</a>` : ""}
+        <a href="https://leetcode.com/problems/${p.lc}/" target="_blank" rel="noopener" title="Open on LeetCode">LC ↗</a>
+      </span>
+    </div>`);
+    row.querySelectorAll(".rate button").forEach(b => {
+      b.onclick = () => {
+        const cur = planEntry(p.id);
+        if (cur && cur.r === b.dataset.r && b.classList.contains("on")) clearPlan(p.id);
+        else ratePlan(p.id, b.dataset.r);
+        onChange();
+      };
+    });
+    return row;
+  }
+
+  function heatmap() {
+    const WEEKS = 13, cell = 13, gap = 3;
+    const today = new Date();
+    const start = new Date(today); start.setDate(start.getDate() - (WEEKS * 7 - 1));
+    // align start to the previous Sunday
+    start.setDate(start.getDate() - start.getDay());
+    let max = 1;
+    for (const k in store.activity) max = Math.max(max, store.activity[k]);
+    const colFor = (n) => n === 0 ? "var(--panel-2)"
+      : n === 1 ? "#9be9a8" : n === 2 ? "#40c463" : n >= max ? "#216e39" : "#30a14e";
+    let rects = "";
+    const cur = new Date(start);
+    for (let w = 0; w < WEEKS + 1; w++) {
+      for (let d = 0; d < 7; d++) {
+        if (cur <= today) {
+          const key = ymd(cur);
+          const n = store.activity[key] || 0;
+          rects += `<rect x="${w * (cell + gap)}" y="${d * (cell + gap)}" width="${cell}" height="${cell}" rx="2" fill="${colFor(n)}"><title>${key}: ${n} action${n === 1 ? "" : "s"}</title></rect>`;
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+    }
+    const W = (WEEKS + 1) * (cell + gap);
+    return el(`<figure class="diagram" style="text-align:left;padding:12px 14px">
+      <svg viewBox="0 0 ${W} ${7 * (cell + gap)}" width="${W}" style="max-width:100%">${rects}</svg>
+      <figcaption>Activity — each square is a day; darker = more problems rated. Keep the row unbroken.</figcaption>
+    </figure>`);
+  }
+
   // ---------- router ----------
   function go(hash) { location.hash = hash; }
   window.__go = go;
@@ -478,6 +682,7 @@
       case "topic": return setView(vTopic(parts[1], parts[2], q.get("m")));
       case "practice": return setView(vPractice(), true);
       case "problem": return setView(vProblem(parts[1]), true);
+      case "plan": return setView(vPlan(), true);
       case "cram": return setView(vCram());
       default: return setView(vDashboard());
     }
@@ -565,10 +770,19 @@
     // code is nested { pid: { lang: source } } — deep-merge so per-language solutions aren't lost
     const mergedCode = Object.assign({}, store.code);
     for (const [pid, langs] of Object.entries(d.code || {})) {
-      const norm = typeof langs === "string" ? { javascript: langs } : langs;
-      mergedCode[pid] = Object.assign({}, mergedCode[pid], norm);
+      const nn = typeof langs === "string" ? { javascript: langs } : langs;
+      mergedCode[pid] = Object.assign({}, mergedCode[pid], nn);
     }
     store.code = mergedCode;
+    // plan / activity: take the entry with the most recent timestamp / higher count
+    store.plan = store.plan || {}; store.activity = store.activity || {};
+    for (const [pid, fe] of Object.entries(d.plan || {})) {
+      const le = store.plan[pid];
+      if (!le || (fe.ts || 0) >= (le.ts || 0)) store.plan[pid] = fe;
+    }
+    for (const [day, c] of Object.entries(d.activity || {})) {
+      store.activity[day] = Math.max(store.activity[day] || 0, c || 0);
+    }
   }
 
   const deepSort = (x) => {
@@ -580,7 +794,7 @@
     }
     return x;
   };
-  const norm = (o) => JSON.stringify(deepSort({ topics: o.topics || {}, problems: o.problems || {}, code: o.code || {} }));
+  const norm = (o) => JSON.stringify(deepSort({ topics: o.topics || {}, problems: o.problems || {}, code: o.code || {}, plan: o.plan || {}, activity: o.activity || {} }));
 
   // returns true if the in-memory store ended up different from the file
   // (i.e. this browser has changes not yet on disk — Save needed)
@@ -715,7 +929,7 @@
     r.onload = () => {
       try {
         const d = JSON.parse(r.result);
-        Object.assign(store, { topics: d.topics || {}, problems: d.problems || {}, code: d.code || {} });
+        Object.assign(store, { topics: d.topics || {}, problems: d.problems || {}, code: d.code || {}, plan: d.plan || {}, activity: d.activity || {} });
         save(); route(); alert("Progress imported.");
       } catch (_) { alert("Invalid file."); }
     };
