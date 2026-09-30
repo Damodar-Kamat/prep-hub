@@ -244,7 +244,7 @@ static &lt;T extends Comparable&lt;? super T&gt;&gt; T max(List&lt;T&gt; xs) { .
         "Group employees by department and find the highest paid in each.",
       ],
       resources: [
-        { t: "Java Stream API guide (dev.java)", u: "https://dev.java/learn/api/streams/", k: "docs" },
+        { t: "Java Stream API guide (dev.java)", u: "https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/util/stream/package-summary.html", k: "docs" },
         { t: "Java Generics FAQ — Angelika Langer", u: "http://www.angelikalanger.com/GenericsFAQ/JavaGenericsFAQ.html", k: "article" },
       ],
     },

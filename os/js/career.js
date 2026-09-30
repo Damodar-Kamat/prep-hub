@@ -128,6 +128,9 @@
         <div class="field mt"><label>Model ${st.llm.models.length ? "(" + st.llm.models.length + " found)" : ""}</label>${st.llm.models.length ? `<select id="lm">${st.llm.models.map((m) => `<option ${m === s.llm.model ? "selected" : ""}>${esc(m)}</option>`).join("")}</select>` : `<input id="lm" value="${esc(s.llm.model || "")}" placeholder="auto">`}</div>
         <label class="row mt" style="font-weight:500"><input type="checkbox" id="le" style="width:auto" ${s.llm.enabled ? "checked" : ""}> Use local LLM when available</label>
         <button class="btn primary mt" id="svl">Save & test</button></div>
+      <div class="card"><h3>🃏 Flashcards</h3><div class="field"><label>New cards per day</label><input type="number" id="npd" min="0" max="500" value="${s.new_per_day || 30}"></div>
+        <div class="small muted mt">Due reviews always come first; this caps how many never-seen cards are introduced each day (Anki-style). 20–40 is sustainable.</div>
+        <button class="btn primary mt" id="svn">Save</button></div>
       <div class="card"><h3>🎙️ Mock interview voice</h3><div class="field"><label>Interviewer voice</label><select id="vn"><option value="">Auto</option>${voices.filter((v) => /^en/i.test(v.lang)).map((v) => `<option ${v.name === OS.ls.get("mock.voiceName", "") ? "selected" : ""}>${esc(v.name)}</option>`).join("")}</select></div>
         <div class="field mt"><label>Dictation language</label><select id="sl">${["en-US", "en-GB", "en-IN", "en-AU"].map((x) => `<option ${x === OS.ls.get("mock.lang", "en-US") ? "selected" : ""}>${x}</option>`).join("")}</select></div>
         <div class="row mt"><button class="btn" id="tv">🔊 Test voice</button></div></div>
@@ -137,6 +140,7 @@
     </div>`));
     OS.$("#svp", el).onclick = async () => { const p = { name: OS.$("#nm", el).value, role: OS.$("#rl", el).value }; await post("/settings", { profile: p }); OS.state.profile = p; OS.toast("Saved"); };
     OS.$("#svl", el).onclick = async () => { await post("/settings", { llm: { base_url: OS.$("#lu", el).value, model: OS.$("#lm", el).value, enabled: OS.$("#le", el).checked, timeout: 120 } }); OS.go("#/settings"); };
+    OS.$("#svn", el).onclick = async () => { await post("/settings", { new_per_day: +OS.$("#npd", el).value }); OS.toast("Saved"); OS.refreshBadges(); };
     OS.$("#vn", el).onchange = (e) => OS.ls.set("mock.voiceName", e.target.value);
     OS.$("#sl", el).onchange = (e) => OS.ls.set("mock.lang", e.target.value);
     OS.$("#tv", el).onclick = () => { const u = new SpeechSynthesisUtterance("Tell me about a time you disagreed with your manager."); const v = speechSynthesis.getVoices().find((x) => x.name === OS.ls.get("mock.voiceName", "")); if (v) u.voice = v; speechSynthesis.speak(u); };

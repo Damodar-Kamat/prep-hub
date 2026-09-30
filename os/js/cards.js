@@ -4,7 +4,7 @@
 
   OS.views["/cards"] = async (el, p) => {
     const st = await get("/cards/stats");
-    el.appendChild(h(`<div class="page-h"><div><h1>🃏 Flashcards</h1><p>Spaced repetition (SM-2). Seeded from your whole library + the question bank; research reports, mocks and digests add more. <b>${st.due}</b> due · ${st.reviewed_today} reviewed today · ${st.total} total.</p></div>
+    el.appendChild(h(`<div class="page-h"><div><h1>🃏 Flashcards</h1><p>Spaced repetition (SM-2). Seeded from your whole library + the question bank; research reports, mocks and digests add more. <b>${st.due}</b> due today (${st.reviews_due} reviews + ${st.new_today} new) · ${st.reviewed_today} reviewed today · ${st.total} total, ${st.new_total} not yet started · <a href="#/settings">${st.new_per_day} new/day</a>.</p></div>
       <div class="row"><button class="btn primary" id="rev" ${st.due ? "" : "disabled"}>▶ Review ${st.due} due</button><button class="btn" id="add">＋ Add card</button><button class="btn ghost" id="seed" title="Re-import library topics & question bank">⟳ Sync library</button></div></div>`));
     const tabs = h(`<div class="tabs"><button class="on" data-t="decks">Decks</button><button data-t="browse">Browse</button></div>`);
     el.appendChild(tabs);

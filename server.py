@@ -494,7 +494,7 @@ def feed_refresh(q, b):
 # ------------------------------------------------------------------ settings, export, prep-hub progress
 @route("GET", "/api/settings")
 def settings_get(q, b):
-    return {"llm": llm.config(), "profile": db.kv_get("profile", {})}
+    return {"llm": llm.config(), "profile": db.kv_get("profile", {}), "new_per_day": tools.new_per_day()}
 
 
 @route("POST", "/api/settings")
@@ -504,6 +504,8 @@ def settings_set(q, b):
         llm.status(force=True)
     if "profile" in b:
         db.kv_set("profile", b["profile"])
+    if "new_per_day" in b:
+        db.kv_set("new_per_day", max(0, min(500, int(b["new_per_day"]))))
     return {"ok": True}
 
 
@@ -871,9 +873,9 @@ def main():
     setup_private_repo()
     restore_backup()
     knowledge.build_library()
-    if db.user().execute("SELECT COUNT(*) n FROM cards").fetchone()["n"] == 0:
-        n = tools.seed_library_cards()
-        print("seeded %d flashcards from the library + question bank" % n)
+    n = tools.seed_library_cards()      # idempotent: only adds cards for new topics/questions
+    if n:
+        print("added %d flashcards from the library + question bank" % n)
     threading.Thread(target=background, daemon=True).start()
     threading.Thread(target=backup_loop, daemon=True).start()
     def shutdown(signum, frame):  # Render/containers send SIGTERM before stopping: save first

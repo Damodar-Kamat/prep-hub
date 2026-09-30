@@ -54,22 +54,54 @@ def card_review(card_id, grade):
     return {"id": card_id, "interval_days": round(interval, 2), "due": due, "ease": round(ease, 2)}
 
 
+def _today_start():
+    lt = time.localtime()
+    return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def new_per_day():
+    return int(db.kv_get("new_per_day", 30))
+
+
+def _new_left_today():
+    """New cards still allowed today = daily limit − cards first reviewed today."""
+    seen_today = db.user().execute(
+        "SELECT COUNT(*) n FROM (SELECT card_id, MIN(ts) first FROM reviews GROUP BY card_id) WHERE first >= ?",
+        (_today_start(),)).fetchone()["n"]
+    return max(0, new_per_day() - seen_today)
+
+
 def cards_due(deck=None, limit=50):
-    sql = "SELECT * FROM cards WHERE suspended=0 AND due<=?"
-    args = [time.time()]
+    """Reviews that are due first, then new cards up to the daily new-card limit."""
+    now = time.time()
+    cond, args = "", []
     if deck:
-        sql += " AND deck=?"
-        args.append(deck)
-    return db.rows(db.user().execute(sql + " ORDER BY due LIMIT ?", args + [limit]))
+        cond, args = " AND deck=?", [deck]
+    u = db.user()
+    reviews = db.rows(u.execute("SELECT * FROM cards WHERE suspended=0 AND reps>0 AND due<=?" + cond + " ORDER BY due LIMIT ?",
+                                [now] + args + [limit]))
+    room = min(limit - len(reviews), _new_left_today())
+    new = db.rows(u.execute("SELECT * FROM cards WHERE suspended=0 AND reps=0 AND lapses=0" + cond + " ORDER BY id LIMIT ?",
+                            args + [max(0, room)])) if room > 0 else []
+    return reviews + new
 
 
 def card_stats():
     u = db.user()
     now = time.time()
-    decks = db.rows(u.execute("SELECT deck, COUNT(*) total, SUM(CASE WHEN due<=? AND suspended=0 THEN 1 ELSE 0 END) due, "
-                              "SUM(CASE WHEN reps>=3 AND interval>=21 THEN 1 ELSE 0 END) mature FROM cards GROUP BY deck ORDER BY deck", (now,)))
-    today = u.execute("SELECT COUNT(*) n FROM reviews WHERE ts>=?", (now - (now % DAY),)).fetchone()["n"]
-    return {"decks": decks, "reviewed_today": today, "total": sum(d["total"] for d in decks), "due": sum(d["due"] or 0 for d in decks)}
+    decks = db.rows(u.execute(
+        "SELECT deck, COUNT(*) total, SUM(CASE WHEN reps>0 AND due<=? AND suspended=0 THEN 1 ELSE 0 END) due_reviews, "
+        "SUM(CASE WHEN reps=0 AND lapses=0 AND suspended=0 THEN 1 ELSE 0 END) new, "
+        "SUM(CASE WHEN reps>=3 AND interval>=21 THEN 1 ELSE 0 END) mature FROM cards GROUP BY deck ORDER BY deck", (now,)))
+    new_left = _new_left_today()
+    for d in decks:
+        d["due"] = (d["due_reviews"] or 0) + min(d["new"] or 0, new_left)
+    today = u.execute("SELECT COUNT(*) n FROM reviews WHERE ts>=?", (_today_start(),)).fetchone()["n"]
+    reviews_due = sum(d["due_reviews"] or 0 for d in decks)
+    new_total = sum(d["new"] or 0 for d in decks)
+    return {"decks": decks, "reviewed_today": today, "total": sum(d["total"] for d in decks),
+            "due": reviews_due + min(new_total, new_left), "reviews_due": reviews_due, "new_today": min(new_total, new_left),
+            "new_total": new_total, "new_per_day": new_per_day()}
 
 
 def seed_library_cards():
@@ -78,6 +110,10 @@ def seed_library_cards():
     added = 0
     for s in lib["sections"]:
         for t in s["topics"]:
+            if t.get("summary"):
+                if card_add("What is “%s” about? (one line)" % t["title"], t["summary"], deck=s["title"],
+                            source="/index.html#/topic/%s/%s?m=key" % (s["id"], t["id"]), ext_id="libsum:%s:%s" % (s["id"], t["id"])):
+                    added += 1
             if t["brushup"]:
                 if card_add("%s — key points?" % t["title"], "\n".join("• " + b for b in t["brushup"]), deck=s["title"],
                             source="/index.html#/topic/%s/%s?m=key" % (s["id"], t["id"]), ext_id="lib:%s:%s" % (s["id"], t["id"])):

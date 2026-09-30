@@ -54,11 +54,11 @@ def _index():
         docs = []
         for s in lib["sections"]:
             for t in s["topics"]:
-                body = " ".join(t["brushup"]) + " " + t["text"][:6000]
+                body = t.get("summary", "") + " " + " ".join(t["brushup"]) + " " + t["text"][:6000]
                 docs.append({"kind": "topic", "section": s["id"], "section_title": s["title"], "id": t["id"], "title": t["title"],
                              "href": "/index.html#/topic/%s/%s?m=deep" % (s["id"], t["id"]),
-                             "toks": nlp.tokens(t["title"]) * 4 + nlp.tokens(" ".join(t.get("tags", []))) * 2 + nlp.tokens(body),
-                             "brushup": t["brushup"][:4]})
+                             "toks": nlp.tokens(t["title"]) * 4 + nlp.tokens(" ".join(t.get("tags", []))) * 2 + nlp.tokens(t.get("summary", "")) * 2 + nlp.tokens(body),
+                             "brushup": ([t["summary"]] if t.get("summary") else []) + t["brushup"][:3]})
         for p in lib["problems"]:
             docs.append({"kind": "problem", "id": p["id"], "title": p["title"], "section_title": "DSA Practice · " + (p.get("difficulty") or ""),
                          "href": "/index.html#/problem/" + p["id"], "toks": nlp.tokens(p["title"]) * 4 + nlp.tokens(" ".join(p["tags"])) * 2 + nlp.tokens(p["statement"]),

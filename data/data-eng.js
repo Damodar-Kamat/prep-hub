@@ -81,7 +81,7 @@ SaaS APIs ──(Airbyte/Fivetran)┘     │
         { t: "Fundamentals of Data Engineering — Reis & Housley", u: "https://www.oreilly.com/library/view/fundamentals-of-data/9781098108298/", k: "book" },
         { t: "Designing Data-Intensive Applications — ch. 10–12", u: "https://dataintensive.net/", k: "book" },
         { t: "Questioning the Lambda Architecture — Jay Kreps", u: "https://www.oreilly.com/radar/questioning-the-lambda-architecture/", k: "article" },
-        { t: "The Log: what every engineer should know — Jay Kreps", u: "https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying", k: "article" },
+        { t: "I Heart Logs — Jay Kreps (the log as the unifying abstraction)", u: "https://www.oreilly.com/library/view/i-heart-logs/9781491909379/", k: "book" },
         { t: "Data Engineering Zoomcamp (free course)", u: "https://github.com/DataTalksClub/data-engineering-zoomcamp", k: "course" },
       ],
     },
@@ -632,7 +632,7 @@ Job → Stage 1: scan + filter + partial aggregation (map side)
       ],
       resources: [
         { t: "Spark documentation — SQL performance tuning", u: "https://spark.apache.org/docs/latest/sql-performance-tuning.html", k: "docs" },
-        { t: "Learning Spark (2nd ed., free from Databricks)", u: "https://www.databricks.com/resources/ebook/learning-spark-from-oreilly", k: "book" },
+        { t: "Learning Spark (2nd ed.)", u: "https://www.oreilly.com/library/view/learning-spark-2nd/9781492050032/", k: "book" },
         { t: "Spark: The Definitive Guide", u: "https://www.oreilly.com/library/view/spark-the-definitive/9781491912201/", k: "book" },
       ],
     },

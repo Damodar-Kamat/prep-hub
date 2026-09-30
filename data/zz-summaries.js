@@ -13,7 +13,9 @@
     career: "Career & Behavioral",
     resources: "Resource Hub",
   };
-  const ORDER = Object.keys(GROUPS).reduce((o, k, i) => ((o[GROUPS[k]] = o[GROUPS[k]] ?? i), o), {});
+  const ORDER = {};
+  Object.keys(GROUPS).forEach((k, i) => { if (!(GROUPS[k] in ORDER)) ORDER[GROUPS[k]] = i; });
+  const ord = (g) => (g in ORDER ? ORDER[g] : 99);
 
   const R = (t, u, k, n) => ({ t, u, k, n });
   const NEET = R("NeetCode roadmap & video solutions", "https://neetcode.io/roadmap", "practice");
@@ -82,7 +84,7 @@
     "hld-design-feed": ["Fan-out on write vs read, the celebrity problem, ranking and timeline caches.", [SDP, HELLO]],
     "hld-design-chat": ["Persistent connections, message ordering, delivery receipts, presence and offline sync.", [HELLO, R("Discord — how Discord stores trillions of messages", "https://discord.com/blog/how-discord-stores-trillions-of-messages", "blog")]],
     // Career
-    "career-star": ["Structure every behavioral answer as Situation → Task → Action → Result, and prepare 6–8 reusable stories.", [TIH, R("Amazon — interview tips (STAR)", "https://www.amazon.jobs/content/en/how-we-hire/interview-prep", "article")]],
+    "career-star": ["Structure every behavioral answer as Situation → Task → Action → Result, and prepare 6–8 reusable stories.", [TIH, R("Amazon — interview tips (STAR)", "https://www.amazon.jobs/content/en/how-we-hire/interviewing-at-amazon", "article")]],
     "career-questions": ["The behavioral questions senior and lead engineers get, and what each is really testing.", [TIH]],
     "career-negotiation": ["Evaluating total compensation and negotiating an offer without burning goodwill.", [R("Levels.fyi — compensation data", "https://www.levels.fyi/", "tool"), R("Haseeb Qureshi — Ten rules for negotiating a job offer", "https://haseebq.com/my-ten-rules-for-negotiating-a-job-offer/", "article")]],
     "career-plan": ["A week-by-week plan to go from rusty to interview-ready in about three months.", [TIH, NEET]],
@@ -99,5 +101,5 @@
   }
   // stable order: by group (in GROUPS order), then original order
   const idx = new Map(S.map((s, i) => [s, i]));
-  S.sort((a, b) => ((ORDER[a.group] ?? 99) - (ORDER[b.group] ?? 99)) || (idx.get(a) - idx.get(b)));
+  S.sort((a, b) => (ord(a.group) - ord(b.group)) || (idx.get(a) - idx.get(b)));
 })();
