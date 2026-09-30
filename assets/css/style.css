@@ -182,3 +182,10 @@ main.wide{max-width:1400px}
 .res-list li{margin:6px 0}
 th,td{vertical-align:top}
 @media (max-width:700px){table{display:block;overflow-x:auto}}
+
+/* company tags, stuck ladder, plan guides */
+.pill.co{background:rgba(124,156,255,.14);color:var(--accent)}
+.stuck-steps li{margin:8px 0}
+.stuck-steps .hidden-step{display:none}
+.guide-box{margin:-4px 0 10px 34px;padding:10px 14px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--panel);font-size:.9rem}
+.guide-box .spoiler{margin:6px 0}

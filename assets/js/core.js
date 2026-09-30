@@ -376,6 +376,39 @@
     return wrap;
   }
 
+  // generic ladder used when a problem has no specific one
+  const GENERIC_STUCK = [
+    "Restate the problem in your own words. What exactly are the inputs, outputs and constraints (n up to?).",
+    "Work 2–3 small examples by hand, including edge cases (empty, one element, duplicates, negatives).",
+    "Write the brute force and its complexity. What work is repeated?",
+    "Match signals to patterns: sorted → binary search/two pointers; subarray/substring → sliding window/prefix sums; 'seen before' → hash map; tree/graph → DFS/BFS; 'number of ways'/'min cost' → DP; 'top k' → heap; all combinations → backtracking.",
+    "Pick the pattern, state the new complexity, then code it — and test with your examples.",
+  ];
+  function stuckPane(p) {
+    const steps = (p.stuck && p.stuck.length ? p.stuck : GENERIC_STUCK);
+    return `<h3 style="margin-top:0">🧭 If you're stuck — reveal one step at a time</h3>
+      <p class="muted">Try each step for a couple of minutes before revealing the next. Interviewers give hints like these — using them well is a skill.</p>
+      <ol class="stuck-steps">${steps.map((st, i) => `<li class="${i ? "hidden-step" : ""}">${st}</li>`).join("")}</ol>
+      <button class="btn small" data-next-step ${steps.length > 1 ? "" : "hidden"}>Reveal next step →</button>
+      ${p.pattern ? `<details class="spoiler" style="margin-top:14px"><summary>Show the pattern</summary><div style="padding-bottom:10px"><b>${esc(p.pattern)}</b></div></details>` : ""}
+      ${p.complexity ? `<details class="spoiler"><summary>Show target complexity</summary><div style="padding-bottom:10px">${esc(p.complexity)}</div></details>` : ""}
+      ${p.lc ? `<p style="margin-top:14px"><a href="https://leetcode.com/problems/${p.lc}/" target="_blank" rel="noopener">Also on LeetCode ↗</a></p>` : ""}`;
+  }
+  function wireStuck(root) {
+    const btn = root.querySelector("[data-next-step]");
+    if (!btn) return;
+    btn.onclick = () => {
+      const next = root.querySelector(".stuck-steps .hidden-step");
+      if (next) next.classList.remove("hidden-step");
+      if (!root.querySelector(".stuck-steps .hidden-step")) btn.hidden = true;
+    };
+  }
+  function guideFor(rp) {
+    const lp = rp.local && PROBLEMS.find(x => x.id === rp.local);
+    if (lp && (lp.stuck || lp.pattern)) return { pattern: lp.pattern, companies: lp.companies, steps: lp.stuck, complexity: lp.complexity };
+    return (window.STUDY_GUIDES || {})[rp.lc] || null;
+  }
+
   function vPractice() {
     const wrap = el(`<div></div>`);
     wrap.appendChild(el(`<h1>DSA Practice</h1>`));
@@ -387,13 +420,14 @@
       <select data-f="diff"><option value="">Any difficulty</option><option>Easy</option><option>Medium</option><option>Hard</option></select>
       <select data-f="tag"><option value="">Any topic</option>${tags.map(t => `<option>${esc(t)}</option>`).join("")}</select>
       <select data-f="status"><option value="">Any status</option><option value="solved">Solved</option><option value="unsolved">Unsolved</option></select>
+      <select data-f="co"><option value="">Any company</option>${[...new Set(PROBLEMS.flatMap(p => p.companies || []))].sort().map(c => `<option>${esc(c)}</option>`).join("")}</select>
     </div>`);
     wrap.appendChild(bar);
     const list = el(`<div></div>`);
     wrap.appendChild(list);
     function draw() {
       const q = bar.querySelector("input").value.toLowerCase();
-      const fd = bar.querySelector('[data-f=diff]').value, ft = bar.querySelector('[data-f=tag]').value, fs = bar.querySelector('[data-f=status]').value;
+      const fd = bar.querySelector('[data-f=diff]').value, ft = bar.querySelector('[data-f=tag]').value, fs = bar.querySelector('[data-f=status]').value, fc = bar.querySelector('[data-f=co]').value;
       list.innerHTML = "";
       PROBLEMS.forEach((p, i) => {
         const st = problemState(p.id);
@@ -402,11 +436,13 @@
         if (ft && !(p.tags || []).includes(ft)) return;
         if (fs === "solved" && st !== "solved") return;
         if (fs === "unsolved" && st === "solved") return;
+        if (fc && !(p.companies || []).includes(fc)) return;
         const row = el(`<div class="topic-row ${st === "solved" ? "done" : ""}">
           <span class="chk ${st === "solved" ? "on" : ""}">${st === "solved" ? "✓" : ""}</span>
           <span class="t-title">${i + 1}. ${esc(p.title)}</span>
           ${diffPill(p.difficulty)}
           ${(p.tags || []).slice(0, 2).map(t => `<span class="pill">${esc(t)}</span>`).join("")}
+          ${(p.companies || []).slice(0, 3).map(c => `<span class="pill co">${esc(c)}</span>`).join("")}
           <button class="btn small primary">Solve</button>
         </div>`);
         row.querySelector(".t-title").onclick = row.querySelector("button").onclick = () => go("#/problem/" + p.id);
@@ -434,6 +470,7 @@
       <button data-t="desc" class="active">Description</button>
       <button data-t="concept">Concept</button>
       <button data-t="hints">Hints</button>
+      <button data-t="stuck">🧭 If stuck</button>
       <button data-t="sol">Editorial</button>
     </div>`);
     const pane = el(`<div class="pw-pane"></div>`);
@@ -442,6 +479,7 @@
     const panes = {
       desc: `<h2 style="margin-top:0">${idx + 1}. ${esc(p.title)} ${diffPill(p.difficulty)}</h2>
         <div class="tag-row">${(p.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join("")}</div>
+        ${p.companies ? `<div class="tag-row" title="Companies where this problem is frequently reported">🏢 ${p.companies.map(c => `<span class="pill co">${esc(c)}</span>`).join("")}</div>` : ""}
         ${p.statement}
         <h3>Examples</h3>
         ${(p.examples || []).map((e, i) => `<div class="case"><div><span class="k">Input:</span> <code>${esc(e.in)}</code></div>
@@ -451,11 +489,13 @@
       concept: `<h3 style="margin-top:0">Concept refresher</h3>${p.concept || "<p class='muted'>—</p>"}
         ${p.relatedTopic ? `<p><a href="#${p.relatedTopic}">→ Full topic in study notes</a></p>` : ""}`,
       hints: `<h3 style="margin-top:0">Hints</h3>${(p.hints || []).map((h, i) => `<details class="spoiler"><summary>Hint ${i + 1}</summary><div style="padding-bottom:12px">${h}</div></details>`).join("") || "<p class='muted'>—</p>"}`,
+      stuck: stuckPane(p),
       sol: `<details class="spoiler"><summary>Show editorial &amp; solution</summary><div style="padding-bottom:14px">${p.solution || "<p class='muted'>—</p>"}</div></details>`,
     };
     function showTab(t) {
       tabs.querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.t === t));
       pane.innerHTML = panes[t];
+      if (t === "stuck") wireStuck(pane);
     }
     tabs.querySelectorAll("button").forEach(b => b.onclick = () => showTab(b.dataset.t));
     showTab("desc");
@@ -691,9 +731,23 @@
         : ""}
       <span class="row-links">
         ${p.local && PROBLEMS.some(x => x.id === p.local) ? `<a href="#/problem/${p.local}" title="Solve in-app">▶ solve</a>` : ""}
+        ${guideFor(p) ? `<a href="javascript:void 0" data-guide title="Pattern, companies and step-by-step approach">🧭 how</a>` : ""}
         <a href="https://leetcode.com/problems/${p.lc}/" target="_blank" rel="noopener" title="Open on LeetCode">LC ↗</a>
       </span>
     </div>`);
+    const gl = row.querySelector("[data-guide]");
+    if (gl) gl.onclick = () => {
+      const nxt = row.nextElementSibling;
+      if (nxt && nxt.classList.contains("guide-box")) { nxt.remove(); return; }
+      const g = guideFor(p);
+      const box = el(`<div class="guide-box">
+        ${g.companies ? `<div>🏢 ${g.companies.map(c => `<span class="pill co">${esc(c)}</span>`).join(" ")}</div>` : ""}
+        <details class="spoiler"><summary>Pattern</summary><div><b>${esc(g.pattern || "")}</b></div></details>
+        <details class="spoiler"><summary>Step-by-step approach (${(g.steps || []).length} steps)</summary><ol>${(g.steps || []).map(x => `<li>${x}</li>`).join("")}</ol></details>
+        ${g.complexity ? `<details class="spoiler"><summary>Target complexity</summary><div>${esc(g.complexity)}</div></details>` : ""}
+      </div>`);
+      row.after(box);
+    };
     row.querySelectorAll(".rate button").forEach(b => {
       b.onclick = () => {
         const cur = planEntry(p.id);

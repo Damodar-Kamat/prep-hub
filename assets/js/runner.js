@@ -32,7 +32,7 @@
           errMsg = err.message;
         }
         const ms = Date.now() - start;
-        if (errMsg === null) ok = deepEq(normalize(got, tc), tc.expected);
+        if (errMsg === null) ok = deepEq(normalize(got, tc), normalize(tc.expected, tc));
         results.push({ input: tc.input, expected: tc.expected, got: errMsg ? '(threw) ' + errMsg : got, ok, ms, hidden: !!tc.hidden });
       }
       self.postMessage({ results, logs });

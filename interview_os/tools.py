@@ -237,7 +237,7 @@ def analyze_jd(jd, resume=""):
                  "NoSQL": "databases", "Kubernetes": "cloud", "AWS": "cloud", "Docker": "cloud", "CI/CD": "cloud",
                  "Data Structures & Algorithms": "dsa", "Low-Level Design / OOP": "lld", "Operating Systems": "cs", "Networking": "cs",
                  "JavaScript/TypeScript": "frontend", "React": "frontend", "Machine Learning": "ml", "LLMs/GenAI": "ml",
-                 "Leadership/Mentoring": "behavioral", "Communication": "behavioral"}
+                 "Leadership/Mentoring": "leadership", "Communication": "behavioral"}
     tracks = []
     for s in skills:
         t = track_map.get(s["skill"])
