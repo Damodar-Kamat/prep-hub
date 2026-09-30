@@ -54,6 +54,7 @@
     const init = { method: opts.method || (opts.body ? "POST" : "GET"), headers: {} };
     if (opts.body !== undefined) { init.body = JSON.stringify(opts.body); init.headers["Content-Type"] = "application/json"; }
     const r = await fetch("/api" + path, init);
+    if (r.status === 401) { location.href = "/login?next=" + encodeURIComponent(location.pathname + location.hash); throw new Error("login required"); }
     let j; try { j = await r.json(); } catch (_) { j = { error: "bad response" }; }
     if (!r.ok) throw new Error(j.error || "HTTP " + r.status);
     return j;

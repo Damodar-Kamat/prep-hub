@@ -1,0 +1,8 @@
+.git
+.claude
+os-data
+private
+__pycache__
+**/__pycache__
+*.command
+.DS_Store

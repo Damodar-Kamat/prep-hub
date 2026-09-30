@@ -7,10 +7,14 @@
 Pure standard library. Data lives in ./os-data (user.db = your stuff, cache.db = disposable).
 """
 import argparse
+import hashlib
+import hmac
+import html
 import json
 import mimetypes
 import os
 import re
+import signal
 import subprocess
 import sys
 import threading
@@ -18,6 +22,7 @@ import time
 import traceback
 import urllib.parse
 import webbrowser
+from http.cookies import SimpleCookie
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -53,7 +58,7 @@ def need(body, *keys):
 # ------------------------------------------------------------------ status / dashboard
 @route("GET", "/api/health")
 def health(q, b):
-    return {"ok": True, "app": "Interview OS", "time": time.time()}
+    return {"ok": True, "app": "Interview OS", "time": time.time(), "auth": bool(os.environ.get("IOS_PASSWORD"))}
 
 
 @route("GET", "/api/status")
@@ -511,17 +516,22 @@ def export(q, b):
     return out
 
 
-@route("POST", "/api/import")
-def import_(q, b):
+def load_data(data, replace=False):
     u = db.user()
     n = 0
+    verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
     for t in ("kv", "cards", "notes", "companies", "stories", "mock_sessions", "activity", "custom_questions", "reviews"):
-        for r in b.get(t, []):
+        for r in data.get(t, []):
             cols = list(r.keys())
-            u.execute("INSERT OR IGNORE INTO %s(%s) VALUES (%s)" % (t, ",".join(cols), ",".join("?" * len(cols))), [r[c] for c in cols])
+            u.execute("%s INTO %s(%s) VALUES (%s)" % (verb, t, ",".join(cols), ",".join("?" * len(cols))), [r[c] for c in cols])
             n += 1
     u.commit()
-    return {"imported": n}
+    return n
+
+
+@route("POST", "/api/import")
+def import_(q, b):
+    return {"imported": load_data(b)}
 
 
 # Personal study data lives in ./private — its own git repo (pushed to a PRIVATE GitHub repo),
@@ -531,8 +541,39 @@ PROGRESS = os.path.join(PRIVATE, "progress.json")
 _git_lock = threading.Lock()
 
 
-def private_commit(msg, files):
-    """Commit `files` in the private data repo and push in the background. Returns True if a commit was made."""
+DATA_REPO = os.environ.get("DATA_REPO", "")        # e.g. Damodar-Kamat/prep-hub-data (hosted deployments)
+GH_TOKEN = os.environ.get("GITHUB_TOKEN", "")      # fine-grained token: Contents read/write on DATA_REPO only
+NOREPLY = os.environ.get("GIT_EMAIL", "112170887+Damodar-Kamat@users.noreply.github.com")
+
+
+def _scrub(t):
+    return t.replace(GH_TOKEN, "***") if GH_TOKEN else t
+
+
+def setup_private_repo():
+    """Hosted mode: clone the private data repo into ./private so data survives restarts/redeploys."""
+    if os.path.isdir(os.path.join(PRIVATE, ".git")) or not (DATA_REPO and GH_TOKEN):
+        return
+    url = "https://x-access-token:%s@github.com/%s.git" % (GH_TOKEN, DATA_REPO)
+    if os.path.isdir(PRIVATE) and os.listdir(PRIVATE):
+        tmp = PRIVATE + ".clone"
+        r = subprocess.run(["git", "clone", "-q", url, tmp], capture_output=True, text=True, timeout=120)
+        if r.returncode == 0:
+            for f in os.listdir(tmp):
+                os.replace(os.path.join(tmp, f), os.path.join(PRIVATE, f))
+            os.rmdir(tmp)
+    else:
+        r = subprocess.run(["git", "clone", "-q", url, PRIVATE], capture_output=True, text=True, timeout=120)
+    if r.returncode != 0:
+        print("⚠ could not clone %s: %s" % (DATA_REPO, _scrub(r.stderr.strip())[:300]))
+        return
+    for k, v in (("user.name", "Interview OS"), ("user.email", NOREPLY)):
+        subprocess.run(["git", "config", k, v], cwd=PRIVATE)
+    print("✓ private data repo %s cloned" % DATA_REPO)
+
+
+def private_commit(msg, files, sync=False):
+    """Commit `files` in the private data repo and push (in the background unless sync). True if a commit was made."""
     if not os.path.isdir(os.path.join(PRIVATE, ".git")):
         return False
     with _git_lock:
@@ -548,9 +589,15 @@ def private_commit(msg, files):
         with _git_lock:
             if subprocess.run(["git", "remote"], cwd=PRIVATE, capture_output=True, text=True).stdout.strip():
                 p = subprocess.run(["git", "push", "-q"], cwd=PRIVATE, capture_output=True, text=True, timeout=60)
+                if p.returncode != 0:  # another instance (Mac vs cloud) pushed first: rebase on it, our newest save wins
+                    subprocess.run(["git", "pull", "-q", "--rebase", "-X", "theirs"], cwd=PRIVATE, capture_output=True, timeout=60)
+                    p = subprocess.run(["git", "push", "-q"], cwd=PRIVATE, capture_output=True, text=True, timeout=60)
                 if p.returncode != 0:
-                    sys.stderr.write("private data push failed (will retry next save): %s\n" % p.stderr.strip()[:200])
-    threading.Thread(target=push, daemon=True).start()
+                    sys.stderr.write("private data push failed (will retry next save): %s\n" % _scrub(p.stderr.strip())[:200])
+    if sync:
+        push()
+    else:
+        threading.Thread(target=push, daemon=True).start()
     return True
 
 
@@ -572,6 +619,27 @@ def progress_save(q, b):
     committed = private_commit("progress: " + time.strftime("%Y-%m-%d %H:%M"), ["progress.json"])
     db.bump_activity(1)
     return {"ok": True, "committed": committed}
+
+
+# ------------------------------------------------------------------ auth (only when IOS_PASSWORD is set)
+PASSWORD = os.environ.get("IOS_PASSWORD", "")
+SESSION = hashlib.sha256(("interview-os-session:" + PASSWORD).encode()).hexdigest() if PASSWORD else ""
+PUBLIC = ("/login", "/api/login", "/api/health", "/logout")
+_fails = {}
+
+LOGIN_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Interview OS — sign in</title><style>
+:root{--bg:#0b0d12;--panel:#151922;--line:#313849;--text:#e7eaf0;--muted:#9aa3b5;--acc:#7c9cff;--bad:#f87171}
+@media (prefers-color-scheme: light){:root{--bg:#f6f7fb;--panel:#fff;--line:#d5d9e4;--text:#151a26;--muted:#5a6478;--acc:#4f6bff;--bad:#dc2626}}
+body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:16px;box-sizing:border-box}
+form{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
+h1{font-size:1.3rem;margin:0 0 4px}p{color:var(--muted);margin:0 0 18px;font-size:.9rem}
+input{width:100%;box-sizing:border-box;padding:11px 13px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--text);font:inherit}
+button{margin-top:12px;width:100%;padding:11px;border:0;border-radius:9px;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.err{color:var(--bad);font-size:.88rem;margin-top:10px}</style></head><body>
+<form method="post" action="/api/login"><h1>⚡ Interview OS</h1><p>Private instance — enter your password.</p>
+<input type="password" name="password" placeholder="Password" autofocus autocomplete="current-password" required>
+<input type="hidden" name="next" value="%(next)s"><button type="submit">Sign in</button>%(err)s</form></body></html>"""
 
 
 # ------------------------------------------------------------------ HTTP plumbing
@@ -631,8 +699,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(302, b"", extra={"Location": "/os/"})
         if path.endswith("/"):
             path += "index.html"
+        if path.lstrip("/").split("/")[0] in ("private", "os-data", "interview_os", ".git", ".claude", "scripts"):
+            return self._send(403, {"error": "forbidden"})
         full = os.path.realpath(os.path.join(ROOT, path.lstrip("/")))
-        if not full.startswith(ROOT) or "/os-data" in full or "/.git" in full or "/interview_os" in full:
+        if not full.startswith(ROOT) or "/os-data" in full or "/.git" in full or "/interview_os" in full or \
+                full.startswith(os.path.realpath(PRIVATE)) or os.path.basename(full) in ("Dockerfile", "render.yaml"):
             return self._send(403, {"error": "forbidden"})
         if not os.path.isfile(full):
             return self._send(404, b"Not found", "text/plain")
@@ -642,22 +713,91 @@ class Handler(BaseHTTPRequestHandler):
         with open(full, "rb") as f:
             self._send(200, f.read(), ctype)
 
+    # ---- auth
+    def _ip(self):
+        return (self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip()
+
+    def _authed(self):
+        if not PASSWORD:
+            return True
+        c = SimpleCookie()
+        try:
+            c.load(self.headers.get("Cookie") or "")
+        except Exception:
+            return False
+        tok = c.get("ios_session")
+        return bool(tok) and hmac.compare_digest(tok.value, SESSION)
+
+    def _gate(self):
+        """True if the request may proceed; otherwise sends 401 / redirect to login."""
+        path = urllib.parse.urlparse(self.path).path
+        if self._authed() or path in PUBLIC:
+            return True
+        if path.startswith("/api/"):
+            self._send(401, {"error": "login required"})
+        else:
+            self._send(302, b"", extra={"Location": "/login?next=" + urllib.parse.quote(self.path)})
+        return False
+
+    def _cookie(self, value, max_age):
+        secure = "; Secure" if self.headers.get("X-Forwarded-Proto") == "https" else ""
+        return "ios_session=%s; Path=/; HttpOnly; SameSite=Lax; Max-Age=%d%s" % (value, max_age, secure)
+
+    def _login_page(self):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
+        nxt = q.get("next", ["/os/"])[0]
+        err = '<div class="err">%s</div>' % html.escape(q["e"][0]) if "e" in q else ""
+        body = LOGIN_HTML % {"next": html.escape(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/os/"), "err": err}
+        return self._send(200, body.encode(), "text/html; charset=utf-8")
+
+    def _login(self):
+        ip = self._ip()
+        f = [t for t in _fails.get(ip, []) if time.time() - t < 900]
+        n = int(self.headers.get("Content-Length") or 0)
+        form = urllib.parse.parse_qs((self.rfile.read(n) if n else b"").decode())
+        nxt = form.get("next", ["/os/"])[0]
+        if not (nxt.startswith("/") and not nxt.startswith("//")):
+            nxt = "/os/"
+        if len(f) >= 10:
+            return self._send(302, b"", extra={"Location": "/login?e=" + urllib.parse.quote("Too many attempts — try again in 15 minutes")})
+        if PASSWORD and hmac.compare_digest(form.get("password", [""])[0].encode(), PASSWORD.encode()):
+            _fails.pop(ip, None)
+            return self._send(302, b"", extra={"Location": nxt, "Set-Cookie": self._cookie(SESSION, 30 * 86400)})
+        f.append(time.time())
+        _fails[ip] = f
+        time.sleep(1)
+        return self._send(302, b"", extra={"Location": "/login?e=Wrong+password&next=" + urllib.parse.quote(nxt)})
+
+    # ---- verbs
     def do_GET(self):
+        path = urllib.parse.urlparse(self.path).path
+        if path == "/login":
+            return self._login_page() if PASSWORD else self._send(302, b"", extra={"Location": "/os/"})
+        if path == "/logout":
+            return self._send(302, b"", extra={"Location": "/login", "Set-Cookie": self._cookie("", 0)})
+        if not self._gate():
+            return
         if self.path.startswith("/api/"):
             return self._api("GET")
         return self._static()
 
     def do_HEAD(self):
-        return self._static()
+        if self._gate():
+            return self._static()
 
     def do_POST(self):
-        return self._api("POST")
+        if urllib.parse.urlparse(self.path).path == "/api/login":
+            return self._login()
+        if self._gate():
+            return self._api("POST")
 
     def do_PUT(self):
-        return self._api("PUT")
+        if self._gate():
+            return self._api("PUT")
 
     def do_DELETE(self):
-        return self._api("DELETE")
+        if self._gate():
+            return self._api("DELETE")
 
 
 def background():
@@ -672,24 +812,49 @@ def background():
         time.sleep(3 * 3600)
 
 
+BACKUP = os.path.join(PRIVATE, "backup.json")
+_last_backup = {"blob": None}
+
+
+def write_backup(sync=False):
+    """Write private/backup.json (readable text) if data changed, and commit/push it to the private repo."""
+    with db.WLOCK:
+        data = export({}, {})
+    data.pop("exported", None)
+    blob = json.dumps(data, indent=1, sort_keys=True, default=str)
+    if blob == _last_backup["blob"]:
+        return False
+    with open(BACKUP + ".tmp", "w") as f:
+        f.write(blob)
+    os.replace(BACKUP + ".tmp", BACKUP)
+    _last_backup["blob"] = blob
+    private_commit("interview-os backup: " + time.strftime("%Y-%m-%d %H:%M"), ["backup.json"], sync=sync)
+    return True
+
+
 def backup_loop():
-    """Every 10 min, if your data changed, write private/backup.json (readable text) and commit it to the private repo."""
-    path = os.path.join(PRIVATE, "backup.json")
-    last = None
+    # hosted instances can be stopped at any time (free tiers sleep) → back up every minute there
+    interval = 60 if DATA_REPO else 600
     while True:
-        time.sleep(600)
+        time.sleep(interval)
         try:
-            data = export({}, {})
-            data.pop("exported", None)
-            blob = json.dumps(data, indent=1, sort_keys=True, default=str)
-            if blob != last:
-                with open(path + ".tmp", "w") as f:
-                    f.write(blob)
-                os.replace(path + ".tmp", path)
-                last = blob
-                private_commit("interview-os backup: " + time.strftime("%Y-%m-%d %H:%M"), ["backup.json"])
+            write_backup()
         except Exception as e:
             sys.stderr.write("backup failed: %s\n" % e)
+
+
+def restore_backup():
+    """Fresh database + an existing backup → restore it (hosted restarts start with an empty disk)."""
+    if db.user().execute("SELECT COUNT(*) n FROM cards").fetchone()["n"] or not os.path.exists(BACKUP):
+        return
+    try:
+        with open(BACKUP) as f:
+            data = json.load(f)
+        n = load_data(data, replace=True)
+        _last_backup["blob"] = json.dumps(data, indent=1, sort_keys=True, default=str)
+        print("✓ restored %d rows from private/backup.json" % n)
+    except Exception as e:
+        print("⚠ restore failed: %s" % e)
 
 
 def main():
@@ -698,14 +863,27 @@ def main():
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
+    if not PASSWORD and a.host not in ("127.0.0.1", "localhost") and not os.environ.get("IOS_ALLOW_NO_PASSWORD"):
+        print("✗ refusing to listen on %s without a password: set IOS_PASSWORD (the Code lab runs code on this machine)" % a.host)
+        sys.exit(2)
     db.init()
     os.makedirs(PRIVATE, exist_ok=True)
+    setup_private_repo()
+    restore_backup()
     knowledge.build_library()
     if db.user().execute("SELECT COUNT(*) n FROM cards").fetchone()["n"] == 0:
         n = tools.seed_library_cards()
         print("seeded %d flashcards from the library + question bank" % n)
     threading.Thread(target=background, daemon=True).start()
     threading.Thread(target=backup_loop, daemon=True).start()
+    def shutdown(signum, frame):  # Render/containers send SIGTERM before stopping: save first
+        try:
+            write_backup(sync=True)
+        finally:
+            os._exit(0)
+    signal.signal(signal.SIGTERM, shutdown)
+    if PASSWORD:
+        print("🔒 password login enabled")
     srv = ThreadingHTTPServer((a.host, a.port), Handler)
     url = "http://localhost:%d/" % a.port
     print("\n  ⚡ Interview OS running → %s   (Prep Hub library at %sindex.html)\n  Ctrl+C to stop.\n" % (url, url))

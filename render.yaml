@@ -1,0 +1,15 @@
+# Render Blueprint — "New → Blueprint" on render.com, or the Deploy to Render button in the README.
+services:
+  - type: web
+    name: interview-os
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: IOS_PASSWORD        # the password you'll use to sign in (required — the app is public on the internet)
+        sync: false
+      - key: GITHUB_TOKEN        # fine-grained token: Contents read/write on prep-hub-data only (keeps your data across restarts)
+        sync: false
+      - key: DATA_REPO
+        value: Damodar-Kamat/prep-hub-data

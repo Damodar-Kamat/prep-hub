@@ -4,7 +4,27 @@ A local, offline-first study workspace for a software-engineering job switch —
 **Interview OS**: web-research agents, a voice mock interviewer, spaced-repetition
 flashcards, company intel, a JD matcher, a story bank and a study planner.
 
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Damodar-Kamat/prep-hub)
+
 ## ⚡ Interview OS — start here
+
+### ☁️ Deploy free on Render (whole app, reachable from anywhere)
+
+1. **Create a data token** (lets the cloud app save to your *private* `prep-hub-data` repo, so nothing is lost
+   when the free instance restarts): GitHub → Settings → Developer settings → **Fine-grained tokens** →
+   *Generate new token* → Repository access: **Only select repositories → prep-hub-data** →
+   Permissions: **Contents: Read and write** → Generate, copy it.
+2. Click **Deploy to Render** above (sign up free with GitHub). Render reads `render.yaml` and asks for:
+   - `IOS_PASSWORD` — the password you'll sign in with (required: the app is on the public internet).
+   - `GITHUB_TOKEN` — the token from step 1.
+3. Wait for the first build (~5 min). Open `https://<your-service>.onrender.com` and sign in.
+
+Free-tier notes: the instance **sleeps after 15 min idle** and takes ~1 min to wake. Your data is restored from
+`prep-hub-data` on every start, saved back every minute and on shutdown. Every push to `main` redeploys.
+Some search engines rate-limit cloud IPs harder than home IPs; the agents fall back to other sources.
+If you use both the cloud and the local app, they share one backup — the most recent save wins, so pick one as your main.
+
+### 💻 Run locally
 
 ```
 ./start.sh            # or double-click "Interview OS.command" in Finder
