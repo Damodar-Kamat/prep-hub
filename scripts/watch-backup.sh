@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Commit once per Save. Run this in a terminal tab while you study:
 #   ./scripts/watch-backup.sh
+# Only needed for file:// mode — Interview OS (./start.sh) commits + pushes on Save by itself.
 # The browser only writes progress.json when you click the Save button, so this makes
 # roughly one commit per Save (plus any content edits you make). Ctrl-C to stop.
 # If you'd rather commit by hand, skip this and run ./scripts/backup.sh when you want.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../private"   # the private data repo (prep-hub-data), NOT the public code repo
+[[ -d .git ]] || { echo "private/ is not a git repo — see README"; exit 1; }
 
 INTERVAL="${1:-15}"   # seconds between checks
 echo "watching $(pwd) — auto-commit every ${INTERVAL}s when there are changes (Ctrl-C to stop)"
@@ -15,6 +17,7 @@ commit_if_dirty() {
     git add -A
     git commit -q -m "progress: $(date '+%Y-%m-%d %H:%M:%S')"
     echo "$(date '+%H:%M:%S')  committed $(git rev-parse --short HEAD)"
+    git push -q || echo "push failed — will retry on next change"
   fi
 }
 

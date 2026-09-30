@@ -2,8 +2,10 @@
 node_modules/
 *.log
 __pycache__/
-# Interview OS: web cache + compiled library are disposable; user.db is binary (os-data/backup.json is the text backup)
-os-data/cache.db*
-os-data/library.json
-os-data/user.db*
+# Personal data — never in this public repo.
+# private/ is its own git repo pushed to the PRIVATE GitHub repo prep-hub-data.
+private/
+progress.json
+# Interview OS local database + disposable web cache
+os-data/
 .claude/

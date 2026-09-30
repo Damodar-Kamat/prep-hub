@@ -34,10 +34,14 @@ Press **⌘K** (or `/`) anywhere: research any topic, paste any URL, jump anywhe
 (`brew install ollama && ollama pull llama3.1:8b`). Interview OS auto-detects it and adds
 synthesized answers, LLM grading + model answers in mocks, and prep strategies. Everything works without it.
 
-**Your data** lives in `os-data/` (`user.db`; a text snapshot `os-data/backup.json` is written every
-10 min when it changes — commit that for git history). `cache.db` is a disposable web cache.
-When the library is served by Interview OS, its **Save** button writes `progress.json` and makes a git
-commit directly — no file picker.
+**Your data stays private.** This repo is public code only. Personal data lives in `private/`
+(ignored here), which is its own git repo pushed to a **private** GitHub repo (`prep-hub-data`):
+`private/progress.json` (library progress — the **Save** button writes it, commits and pushes, no file picker)
+and `private/backup.json` (Interview OS snapshot, refreshed every 10 min when it changes).
+The live database is `os-data/user.db`; `os-data/cache.db` is a disposable web cache.
+
+New machine: clone this repo, then `git clone https://github.com/<you>/prep-hub-data private`
+inside it, run `./start.sh`, and Settings → Import `private/backup.json`.
 
 Architecture: `server.py` (router + static) · `interview_os/` — `search.py` (meta-search + RRF fusion),
 `reader.py` + `extract.py` (readability extraction), `nlp.py` (TF-IDF, extractive summarisation with MMR,
@@ -109,34 +113,22 @@ outside the browser you click **Save** (like a document editor).
 
 - The footer shows **● Unsaved changes** (pulsing **Save** button) whenever you have
   changes not yet written out.
-- **Chrome / Edge / Brave:** click **Connect progress file** once and pick `progress.json`
-  in this folder. After that, **Save** writes your progress straight into that file on disk.
-  The browser remembers the file; after a full browser restart click **Reconnect progress
-  file** once (a browser security rule for re-granting file permission).
-- **Firefox:** no File System Access API, so **Save** downloads a `progress.json` you drop
-  into this folder (and **Import** loads one back). Deliberate — the silent-file feature
-  can't be built for Firefox.
+- **Served by Interview OS (`./start.sh`, recommended):** **Save** writes `private/progress.json`,
+  commits it and pushes it to your private `prep-hub-data` repo. Nothing else to set up.
+- **Opened as a plain file (`file://`) in Chrome / Edge / Brave:** click **Connect progress file**
+  once and pick `private/progress.json`; **Save** then writes it on disk.
+- **Firefox (file mode):** **Save** downloads a `progress.json` — drop it into `private/`.
 - The browser warns you if you try to close the tab with unsaved changes.
 
-### Git backup — one commit per Save
+### Git backup — private, one commit per Save
 
-`progress.json` is tracked in this git repo.
-
-```
-./scripts/watch-backup.sh      # run in a terminal tab while studying — commits each Save automatically
-./scripts/backup.sh            # or just run this by hand whenever you want a checkpoint
-```
-
-Flow: **Connect progress file** (once) → optionally start `./scripts/watch-backup.sh` →
-study → click **Save** when you want it persisted. Each Save writes the file and (if the
-watcher is running) becomes one timestamped commit. Roll back anytime with normal `git`.
-
-For off-machine backup, add a private remote and push (or just keep the folder in
-iCloud/Dropbox):
+`progress.json` is **not** in this public repo. It lives in `private/`, a separate git repo
+pushed to a private GitHub repo. With Interview OS running, every Save is committed + pushed
+automatically. In file mode, use the scripts (they only touch `private/`):
 
 ```
-git remote add origin <your-private-repo-url>
-git push -u origin main
+./scripts/watch-backup.sh      # run in a terminal tab while studying — commits + pushes each Save
+./scripts/backup.sh            # or run by hand for a checkpoint
 ```
 
 ## Extending

@@ -524,7 +524,34 @@ def import_(q, b):
     return {"imported": n}
 
 
-PROGRESS = os.path.join(ROOT, "progress.json")
+# Personal study data lives in ./private — its own git repo (pushed to a PRIVATE GitHub repo),
+# ignored by the public code repo. Override with IOS_PRIVATE_DIR.
+PRIVATE = os.environ.get("IOS_PRIVATE_DIR", os.path.join(ROOT, "private"))
+PROGRESS = os.path.join(PRIVATE, "progress.json")
+_git_lock = threading.Lock()
+
+
+def private_commit(msg, files):
+    """Commit `files` in the private data repo and push in the background. Returns True if a commit was made."""
+    if not os.path.isdir(os.path.join(PRIVATE, ".git")):
+        return False
+    with _git_lock:
+        try:
+            subprocess.run(["git", "add", "--"] + files, cwd=PRIVATE, capture_output=True, timeout=10)
+            r = subprocess.run(["git", "commit", "-q", "-m", msg, "--"] + files, cwd=PRIVATE, capture_output=True, timeout=10)
+        except Exception:
+            return False
+    if r.returncode != 0:
+        return False
+
+    def push():
+        with _git_lock:
+            if subprocess.run(["git", "remote"], cwd=PRIVATE, capture_output=True, text=True).stdout.strip():
+                p = subprocess.run(["git", "push", "-q"], cwd=PRIVATE, capture_output=True, text=True, timeout=60)
+                if p.returncode != 0:
+                    sys.stderr.write("private data push failed (will retry next save): %s\n" % p.stderr.strip()[:200])
+    threading.Thread(target=push, daemon=True).start()
+    return True
 
 
 @route("GET", "/api/progress")
@@ -538,18 +565,11 @@ def progress_get(q, b):
 
 @route("POST", "/api/progress")
 def progress_save(q, b):
-    """Prep Hub's Save button posts here when served by Interview OS: writes progress.json and commits it."""
+    """Prep Hub's Save button posts here when served by Interview OS: writes private/progress.json, commits + pushes it."""
+    os.makedirs(PRIVATE, exist_ok=True)
     with open(PROGRESS, "w") as f:
         f.write(json.dumps(b, indent=2, sort_keys=False) + "\n")
-    committed = False
-    if os.path.isdir(os.path.join(ROOT, ".git")):
-        try:
-            subprocess.run(["git", "add", "progress.json"], cwd=ROOT, capture_output=True, timeout=10)
-            r = subprocess.run(["git", "commit", "-m", "progress: " + time.strftime("%Y-%m-%d %H:%M"), "--", "progress.json"],
-                               cwd=ROOT, capture_output=True, timeout=10)
-            committed = r.returncode == 0
-        except Exception:
-            pass
+    committed = private_commit("progress: " + time.strftime("%Y-%m-%d %H:%M"), ["progress.json"])
     db.bump_activity(1)
     return {"ok": True, "committed": committed}
 
@@ -653,8 +673,8 @@ def background():
 
 
 def backup_loop():
-    """Every 10 min, if your data changed, write os-data/backup.json (text → git-friendly, human-readable)."""
-    path = os.path.join(ROOT, "os-data", "backup.json")
+    """Every 10 min, if your data changed, write private/backup.json (readable text) and commit it to the private repo."""
+    path = os.path.join(PRIVATE, "backup.json")
     last = None
     while True:
         time.sleep(600)
@@ -667,6 +687,7 @@ def backup_loop():
                     f.write(blob)
                 os.replace(path + ".tmp", path)
                 last = blob
+                private_commit("interview-os backup: " + time.strftime("%Y-%m-%d %H:%M"), ["backup.json"])
         except Exception as e:
             sys.stderr.write("backup failed: %s\n" % e)
 
@@ -678,6 +699,7 @@ def main():
     ap.add_argument("--no-browser", action="store_true")
     a = ap.parse_args()
     db.init()
+    os.makedirs(PRIVATE, exist_ok=True)
     knowledge.build_library()
     if db.user().execute("SELECT COUNT(*) n FROM cards").fetchone()["n"] == 0:
         n = tools.seed_library_cards()
