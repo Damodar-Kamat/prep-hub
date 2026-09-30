@@ -641,7 +641,7 @@ button{margin-top:12px;width:100%;padding:11px;border:0;border-radius:9px;backgr
 .err{color:var(--bad);font-size:.88rem;margin-top:10px}</style></head><body>
 <form method="post" action="/api/login"><h1>⚡ Interview OS</h1><p>Private instance — enter your password.</p>
 <input type="password" name="password" placeholder="Password" autofocus autocomplete="current-password" required>
-<input type="hidden" name="next" value="%(next)s"><button type="submit">Sign in</button>%(err)s</form></body></html>"""
+<input type="hidden" name="next" value="{{NEXT}}"><button type="submit">Sign in</button>{{ERR}}</form></body></html>"""
 
 
 # ------------------------------------------------------------------ HTTP plumbing
@@ -749,7 +749,9 @@ class Handler(BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         nxt = q.get("next", ["/os/"])[0]
         err = '<div class="err">%s</div>' % html.escape(q["e"][0]) if "e" in q else ""
-        body = LOGIN_HTML % {"next": html.escape(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/os/"), "err": err}
+        safe_next = html.escape(nxt if nxt.startswith("/") and not nxt.startswith("//") else "/os/")
+        body = LOGIN_HTML.replace("{{NEXT}}", safe_next).replace("{{ERR}}", err)   # not %-format: the CSS contains '%'
+
         return self._send(200, body.encode(), "text/html; charset=utf-8")
 
     def _login(self):
@@ -769,6 +771,16 @@ class Handler(BaseHTTPRequestHandler):
         _fails[ip] = f
         time.sleep(1)
         return self._send(302, b"", extra={"Location": "/login?e=Wrong+password&next=" + urllib.parse.quote(nxt)})
+
+    def handle_one_request(self):
+        try:
+            super().handle_one_request()
+        except Exception:
+            traceback.print_exc()
+            try:
+                self._send(500, {"error": "internal error"})
+            except Exception:
+                pass
 
     # ---- verbs
     def do_GET(self):
