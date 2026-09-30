@@ -1,3 +1,9 @@
 .DS_Store
 node_modules/
 *.log
+__pycache__/
+# Interview OS: web cache + compiled library are disposable; user.db is binary (os-data/backup.json is the text backup)
+os-data/cache.db*
+os-data/library.json
+os-data/user.db*
+.claude/

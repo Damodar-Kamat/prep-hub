@@ -826,12 +826,32 @@
     await w.close();
   }
 
+  // ---------- Interview OS server mode ----------
+  // When this page is served by Interview OS (./start.sh), Save POSTs to the local
+  // server, which writes progress.json and makes one git commit — no file picker needed.
+  let serverMode = false;
+  async function detectServer() {
+    if (location.protocol === "file:") return false;
+    try {
+      const r = await fetch("/api/health", { cache: "no-store" });
+      return r.ok && (await r.json()).app === "Interview OS";
+    } catch (_) { return false; }
+  }
+
   async function doSave() {
     if (syncing) return;
     syncing = true;
     const s = document.getElementById("syncStatus");
     if (s) { s.textContent = "Saving…"; s.style.color = "var(--warn)"; }
     try {
+      if (serverMode) {
+        const r = await fetch("/api/progress", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(store) });
+        if (!r.ok) throw new Error("HTTP " + r.status);
+        const j = await r.json();
+        markClean();
+        if (s) { s.textContent = "Saved → progress.json" + (j.committed ? " + git commit" : "") + " · " + fmtTime(new Date()); s.style.color = "var(--ok)"; }
+        return;
+      }
       if (fileHandle) {
         if (!(await ensurePermission(fileHandle, true))) { refreshSyncUI(); return; }
         await writeToHandle();
@@ -888,6 +908,28 @@
   async function initFileSync() {
     const saveBtn = document.getElementById("saveBtn");
     if (saveBtn) { saveBtn.hidden = false; saveBtn.onclick = doSave; }
+
+    serverMode = await detectServer();
+    if (serverMode) {
+      try {
+        const d = await (await fetch("/api/progress", { cache: "no-store" })).json();
+        const fileSnap = norm(d || {});
+        mergeFromFileData(d);
+        try { localStorage.setItem(PKEY, JSON.stringify(store)); } catch (_) {}
+        route();
+        if (norm(store) !== fileSnap) markDirty();
+      } catch (_) {}
+      const right = document.querySelector(".topbar-right");
+      if (right && !document.getElementById("iosLink")) {
+        const a = document.createElement("a");
+        a.id = "iosLink"; a.href = "/os/"; a.className = "icon-btn"; a.title = "Interview OS — agents, mocks, flashcards";
+        a.textContent = "⚡ Interview OS"; a.style.cssText = "text-decoration:none;font-weight:600;padding:4px 10px;width:auto";
+        right.insertBefore(a, right.firstChild);
+      }
+      const s = document.getElementById("syncStatus");
+      if (!dirty && s) { s.textContent = "Interview OS server · Save writes progress.json + git commit"; s.style.color = ""; }
+      return;
+    }
 
     if (!FS_SUPPORTED) { refreshSyncUI(); return; }
 

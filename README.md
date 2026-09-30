@@ -1,6 +1,53 @@
-# Prep Hub
+# Prep Hub + ⚡ Interview OS
 
-A local, offline study workspace for a software-engineering job switch.
+A local, offline-first study workspace for a software-engineering job switch — now with
+**Interview OS**: web-research agents, a voice mock interviewer, spaced-repetition
+flashcards, company intel, a JD matcher, a story bank and a study planner.
+
+## ⚡ Interview OS — start here
+
+```
+./start.sh            # or double-click "Interview OS.command" in Finder
+# → http://localhost:8777   (Prep Hub library at http://localhost:8777/index.html)
+```
+
+Pure Python 3.9+ standard library. **No pip installs, no API keys, no Claude/OpenAI.**
+Press **⌘K** (or `/`) anywhere: research any topic, paste any URL, jump anywhere.
+
+| Screen | What it does |
+| --- | --- |
+| **Home** | Readiness per area (library progress + mock scores + stories), streak, today's plan, due cards, upcoming interviews, activity heatmap, trending engineering on HN |
+| **Research agent** | Plans sub-queries → meta-searches DuckDuckGo / Brave / Bing, Wikipedia, Stack Overflow (via API, incl. accepted answers), Hacker News, GitHub, arXiv, dev.to → reads the best pages (with reader-proxy & Wayback fallbacks for blocked sites) → cited cheat-sheet: definition, how it works, advantages, trade-offs, real-world use, pitfalls, harvested interview Q&A, code, related topics, further reading. **Deep** mode reads 12+ sources. “X vs Y” auto-switches to a comparison report. Paste a URL to **digest** any article |
+| **Mock interview** | 13 tracks (~200 rubric'd questions + everything you mine). Interviewer speaks (TTS); you answer by **voice** (speech recognition) or typing. Graded on key-point coverage, STAR structure, quantified impact, “I vs we” ownership, trade-offs, Big-O, fillers, pace; follow-up probes; hints; retry; session reports; gaps → flashcards. Company-tailored behavioral (e.g. Amazon LPs). System design shows a live framework checklist |
+| **Flashcards** | SM-2 spaced repetition. Auto-seeded from every library topic + interview question + the question bank; agents/mocks/notes add more. Keyboard: space, 1–4 |
+| **Study plan** | Day-by-day plan to your interview date: DSA roadmap in order, concept deep dives, mocks every 3 days, weekly reviews, taper before the day |
+| **Company intel** | Agent reads interview experiences (GfG, LeetCode Discuss, Reddit, Glassdoor snippets, blogs, HN) → process/rounds, hot topics, LeetCode problems actually mentioned, reported questions, candidate tips, company values, engineering blog |
+| **Applications** | Kanban pipeline (Wishlist → Offer) with interview dates, comp, notes |
+| **JD matcher** | Weighted skills from a JD, resume match %, missing ATS keywords, gaps with study links, likely questions, which mock tracks to drill |
+| **Story bank** | STAR stories mapped to 15 behavioral themes, coverage matrix, story scoring |
+| **Code lab** | Runs Java / Python / C++ / JS **locally** with stdin |
+| **Question bank** | All questions + rubrics; **⛏️ Question miner** agent harvests Q&A pairs for any topic from the web into your mock tracks |
+| **Notebook** | Markdown notes + saved agent reports, SQLite FTS5 full-text search |
+| **Eng. blogs & HN** | 24 engineering blogs (Netflix, Meta, Cloudflare, Discord, Stripe, AWS, ByteByteGo, Confluent…) refreshed every 3h, auto-tagged by skill; digest any post |
+
+**Optional local LLM** (still not Claude): run [Ollama](https://ollama.com) / LM Studio / llama.cpp
+(`brew install ollama && ollama pull llama3.1:8b`). Interview OS auto-detects it and adds
+synthesized answers, LLM grading + model answers in mocks, and prep strategies. Everything works without it.
+
+**Your data** lives in `os-data/` (`user.db`; a text snapshot `os-data/backup.json` is written every
+10 min when it changes — commit that for git history). `cache.db` is a disposable web cache.
+When the library is served by Interview OS, its **Save** button writes `progress.json` and makes a git
+commit directly — no file picker.
+
+Architecture: `server.py` (router + static) · `interview_os/` — `search.py` (meta-search + RRF fusion),
+`reader.py` + `extract.py` (readability extraction), `nlp.py` (TF-IDF, extractive summarisation with MMR,
+RAKE key-phrases, question mining, rubric matching), `agents.py` (research/compare/company/mine/digest),
+`interviewer.py` + `bank.py` (mock interviews), `tools.py` (SM-2, planner, JD analyser, code runner, feeds),
+`knowledge.py` (library index, skills taxonomy, company values) · `os/` — vanilla JS front end.
+
+---
+
+## 📚 Prep Hub library
 
 ## Run it
 
