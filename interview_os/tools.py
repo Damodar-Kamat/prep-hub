@@ -261,9 +261,15 @@ def analyze_jd(jd, resume=""):
 LANGS = {
     "python": {"file": "main.py", "run": [["python3", "main.py"]]},
     "java": {"file": "Main.java", "run": [["javac", "Main.java"], ["java", "-Xss64m", "Main"]]},
-    "cpp": {"file": "main.cpp", "run": [["g++", "-std=c++17", "-O2", "-o", "main", "main.cpp"], ["./main"]]},
+    "cpp": {"file": "main.cpp", "run": [["g++", "-std=c++17", "-O2", "-I", "shim", "-o", "main", "main.cpp"], ["./main"]]},
     "javascript": {"file": "main.js", "run": [["node", "main.js"]]},
 }
+
+
+BITS_HEADERS = ["algorithm", "array", "bitset", "cassert", "cctype", "climits", "cmath", "cstdio", "cstdlib", "cstring",
+                "deque", "functional", "iomanip", "iostream", "iterator", "limits", "list", "map", "numeric", "queue", "set",
+                "sstream", "stack", "string", "tuple", "unordered_map", "unordered_set", "utility", "vector", "chrono", "random",
+                "memory", "optional", "variant", "fstream"]
 
 
 def runner_langs():
@@ -284,6 +290,10 @@ def run_code(lang, code, stdin="", timeout=10):
     with tempfile.TemporaryDirectory(prefix="ios-run-") as d:
         with open(os.path.join(d, spec["file"]), "w") as f:
             f.write(code)
+        if lang == "cpp":  # macOS clang has no <bits/stdc++.h>; provide an equivalent (GCC's own header wins on Linux)
+            os.makedirs(os.path.join(d, "shim", "bits"))
+            with open(os.path.join(d, "shim", "bits", "stdc++.h"), "w") as f:
+                f.write("\n".join("#include <%s>" % h for h in BITS_HEADERS) + "\n")
         out = {"ok": True, "stdout": "", "stderr": "", "steps": []}
         for i, cmd in enumerate(spec["run"]):
             last = i == len(spec["run"]) - 1

@@ -34,6 +34,19 @@ from interview_os import reader as rdr  # noqa: E402
 ROUTES = []
 
 
+def _version():
+    v = os.environ.get("RENDER_GIT_COMMIT", "")          # set by Render on every deploy
+    if not v:
+        try:
+            v = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5).stdout.strip()
+        except Exception:
+            v = ""
+    return v[:7] or "unknown"
+
+
+VERSION = _version()
+
+
 def route(method, pattern):
     rx = re.compile("^" + pattern + "$")
 
@@ -58,7 +71,7 @@ def need(body, *keys):
 # ------------------------------------------------------------------ status / dashboard
 @route("GET", "/api/health")
 def health(q, b):
-    return {"ok": True, "app": "Interview OS", "time": time.time(), "auth": bool(os.environ.get("IOS_PASSWORD"))}
+    return {"ok": True, "app": "Interview OS", "time": time.time(), "auth": bool(os.environ.get("IOS_PASSWORD")), "version": VERSION}
 
 
 @route("GET", "/api/status")
@@ -701,8 +714,9 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(302, b"", extra={"Location": "/os/"})
         if path.endswith("/"):
             path += "index.html"
-        if path.lstrip("/").split("/")[0] in ("private", "os-data", "interview_os", ".git", ".claude", "scripts"):
-            return self._send(403, {"error": "forbidden"})
+        # allowlist: only the two front-ends and their assets are served
+        if not (path in ("/index.html", "/favicon.ico") or path.startswith(("/os/", "/assets/", "/data/"))):
+            return self._send(404, b"Not found", "text/plain")
         full = os.path.realpath(os.path.join(ROOT, path.lstrip("/")))
         if not full.startswith(ROOT) or "/os-data" in full or "/.git" in full or "/interview_os" in full or \
                 full.startswith(os.path.realpath(PRIVATE)) or os.path.basename(full) in ("Dockerfile", "render.yaml"):

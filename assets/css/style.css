@@ -189,3 +189,22 @@ th,td{vertical-align:top}
 .stuck-steps .hidden-step{display:none}
 .guide-box{margin:-4px 0 10px 34px;padding:10px 14px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--panel);font-size:.9rem}
 .guide-box .spoiler{margin:6px 0}
+
+/* phone widths: let rows wrap instead of widening the page */
+pre{overflow-x:auto;max-width:100%}
+.topic-row .t-title{min-width:0;overflow-wrap:anywhere}
+@media (max-width:700px){
+  .topic-row{flex-wrap:wrap}
+  .topic-row .t-title{flex:1 1 calc(100% - 40px)}
+  .row-links{flex-wrap:wrap;display:inline-flex;gap:8px}
+  .toolbar{flex-wrap:wrap}
+  .toolbar input,.toolbar select{max-width:100%}
+  .guide-box{margin-left:0}
+}
+@media (max-width:700px){
+  .detail-actions .btn{white-space:normal;text-align:left;max-width:100%}
+  .toolbar select{min-width:0;width:100%}
+}
+/* long unbreakable tokens (URLs, identifiers, inline code) must wrap, never widen the page */
+li, p, td, .brushup-box { overflow-wrap: anywhere; }
+:not(pre) > code { overflow-wrap: anywhere; word-break: break-word; }
