@@ -112,7 +112,7 @@
   // ---------- tabs ----------
   const TABS = [
     ["#/", "Dashboard"],
-    ...SECTIONS.map(s => ["#/section/" + s.id, s.title]),
+    ["#/topics", "All topics"],
     ...(ROADMAP.length ? [["#/plan", "DSA Plan"]] : []),
     ["#/practice", "DSA Practice"],
     ["#/cram", "Last-Minute Prep"],
@@ -123,7 +123,7 @@
     const cur = location.hash || "#/";
     nav.querySelectorAll("a").forEach(a => {
       const h = a.getAttribute("href");
-      a.classList.toggle("active", h === "#/" ? cur === "#/" : cur.startsWith(h));
+      a.classList.toggle("active", h === "#/" ? cur === "#/" : h === "#/topics" ? (cur.startsWith("#/topics") || cur.startsWith("#/section") || cur.startsWith("#/topic/")) : cur.startsWith(h));
     });
   }
 
@@ -140,8 +140,16 @@
       <div class="progress-bar"><i style="width:${tp.length + PROBLEMS.length ? (tpd + pd) / (tp.length + PROBLEMS.length) * 100 : 0}%"></i></div>
     </div>`));
 
-    const grid = el(`<div class="grid"></div>`);
-    SECTIONS.forEach(s => {
+    const groups = {};
+    SECTIONS.forEach(s => { const g = s.group || "Core"; (groups[g] = groups[g] || []).push(s); });
+    wrap.appendChild(el(`<div class="toolbar"><input type="search" id="dashSearch" placeholder="🔎 Search ${allTopics().length} topics across ${SECTIONS.length} sections…"/></div>`));
+    wrap.querySelector("#dashSearch").addEventListener("keydown", (e) => { if (e.key === "Enter") go("#/topics?q=" + encodeURIComponent(e.target.value)); });
+    const grid = el(`<div></div>`);
+    Object.entries(groups).forEach(([g, secs]) => {
+      grid.appendChild(el(`<h2 style="margin:22px 0 10px">${esc(g)}</h2>`));
+      const gg = el(`<div class="grid"></div>`);
+      grid.appendChild(gg);
+      secs.forEach(s => {
       const st = sectionStats(s);
       const c = el(`<div class="card section-card" data-nav="#/section/${s.id}">
         <div class="big">${s.icon || "📄"}</div>
@@ -150,13 +158,17 @@
         <div class="muted">${st.done}/${st.total} done</div>
         <div class="progress-bar"><i style="width:${st.pct}%"></i></div>
       </div>`);
-      grid.appendChild(c);
+      gg.appendChild(c);
+      });
     });
+    const pgrid = el(`<div class="grid"></div>`);
+    grid.appendChild(el(`<h2 style="margin:22px 0 10px">Practice</h2>`));
+    grid.appendChild(pgrid);
     if (ROADMAP_PROBLEMS.length) {
       const att = ROADMAP_PROBLEMS.filter(x => planEntry(x.id)).length;
       const streak = currentStreak();
       const due = dueProblems().length;
-      grid.appendChild(el(`<div class="card section-card" data-nav="#/plan">
+      pgrid.appendChild(el(`<div class="card section-card" data-nav="#/plan">
         <div class="big">🗺️</div><h3>DSA Mastery Plan</h3>
         <p class="muted">The 150-problem curriculum, in order, with spaced-repetition review and a streak. Start here.</p>
         <div class="muted">🔥 ${streak}-day streak · ${att}/${ROADMAP_PROBLEMS.length} attempted${due ? ` · ${due} due` : ""}</div>
@@ -169,7 +181,7 @@
       <div class="muted">${pd}/${PROBLEMS.length} solved</div>
       <div class="progress-bar"><i style="width:${PROBLEMS.length ? pd / PROBLEMS.length * 100 : 0}%"></i></div>
     </div>`);
-    grid.appendChild(pc);
+    pgrid.appendChild(pc);
     wrap.appendChild(grid);
 
     wrap.appendChild(el(`<h2>How to use this</h2>
@@ -207,10 +219,10 @@
       s.topics.forEach(t => {
         const done = isTopicDone(t.id);
         if (hd && done) return;
-        if (q && !(t.title + " " + (t.tags || []).join(" ")).toLowerCase().includes(q)) return;
+        if (q && !(t.title + " " + (t.tags || []).join(" ") + " " + (t.summary || "")).toLowerCase().includes(q)) return;
         const row = el(`<div class="topic-row ${done ? "done" : ""}">
           ${chk(done)}
-          <span class="t-title">${esc(t.title)}</span>
+          <span class="t-title">${esc(t.title)}${t.summary ? `<span class="t-sum">${esc(t.summary)}</span>` : ""}</span>
           <button class="btn small" data-act="key">Key points</button>
           <button class="btn small primary" data-act="deep">Deep dive</button>
         </div>`);
@@ -237,6 +249,7 @@
     wrap.appendChild(el(`<div class="crumbs"><a href="#/">Dashboard</a> / <a href="#/section/${s.id}">${esc(s.title)}</a> / ${esc(t.title)}</div>`));
     wrap.appendChild(el(`<h1>${esc(t.title)}</h1>`));
     if (t.tags) wrap.appendChild(el(`<div class="tag-row">${t.tags.map(x => `<span class="pill">${esc(x)}</span>`).join("")}</div>`));
+    if (t.summary) wrap.appendChild(el(`<p class="topic-summary">${esc(t.summary)}</p>`));
 
     const actions = el(`<div class="detail-actions">
       <button class="btn ${mode !== "deep" ? "primary" : ""}" data-m="key">★ Key points</button>
@@ -254,8 +267,11 @@
         if (t.diagram) body.appendChild(el(`<figure class="diagram">${t.diagram}${t.diagramCaption ? `<figcaption>${esc(t.diagramCaption)}</figcaption>` : ""}</figure>`));
         if (t.pitfalls) body.appendChild(el(`<h3>Common pitfalls / gotchas</h3><ul>${t.pitfalls.map(p => `<li>${p}</li>`).join("")}</ul>`));
         if (t.interviewQs) body.appendChild(el(`<h3>Likely interview questions</h3><ul>${t.interviewQs.map(p => `<li>${esc(p)}</li>`).join("")}</ul>`));
+        body.appendChild(resourcesBlock(t));
       } else {
         body.appendChild(el(`<div class="brushup-box"><h4>★ Key points — ${esc(t.title)}</h4><ul>${(t.brushup || []).map(b => `<li>${b}</li>`).join("")}</ul></div>`));
+        body.appendChild(el(`<p class="muted" style="font-size:.85rem">Want the full explanation? Open <a href="#/topic/${s.id}/${t.id}?m=deep">📖 Deep dive</a>.</p>`));
+        body.appendChild(resourcesBlock(t));
       }
       actions.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("primary", b.dataset.m === (m === "deep" ? "deep" : "key")));
     }
@@ -272,6 +288,57 @@
     if (idx > 0) { const p = s.topics[idx - 1]; nav.appendChild(el(`<button class="btn">← ${esc(p.title)}</button>`)).onclick = () => go(`#/topic/${sid}/${p.id}?m=${mode || "key"}`); }
     if (idx < s.topics.length - 1) { const n = s.topics[idx + 1]; nav.appendChild(el(`<button class="btn">${esc(n.title)} →</button>`)).onclick = () => go(`#/topic/${sid}/${n.id}?m=${mode || "key"}`); }
     wrap.appendChild(nav);
+    return wrap;
+  }
+
+  const KIND_ICON = { book: "📘", course: "🎓", video: "🎬", article: "📄", docs: "📚", practice: "🧩", repo: "📦", tool: "🛠️", blog: "📰", paper: "📄" };
+  function resourcesBlock(t) {
+    const wrap = el(`<div class="resources"></div>`);
+    if (t.resources && t.resources.length) {
+      wrap.appendChild(el(`<h3>📚 Resources</h3>`));
+      wrap.appendChild(el(`<ul class="res-list">${t.resources.map(r => `<li>${KIND_ICON[r.k] || "🔗"} <a href="${esc(r.u)}" target="_blank" rel="noopener">${esc(r.t)}</a>${r.n ? ` <span class="muted">— ${esc(r.n)}</span>` : ""}</li>`).join("")}</ul>`));
+    }
+    if (window.__IOS) {
+      wrap.appendChild(el(`<p class="muted" style="font-size:.85rem">⚡ <a href="/os/#/ask?q=${encodeURIComponent(t.title)}">Research “${esc(t.title)}” across the web</a> · <a href="/os/#/questions?mine=${encodeURIComponent(t.title)}">mine interview Q&amp;A</a></p>`));
+    }
+    return wrap;
+  }
+
+  function vTopics(q0) {
+    const wrap = el(`<div></div>`);
+    const total = allTopics().length;
+    wrap.appendChild(el(`<h1>All topics</h1>`));
+    wrap.appendChild(el(`<p class="muted">${total} topics in ${SECTIONS.length} sections — every one has a one-line summary, ★ key points and a 📖 deep dive.</p>`));
+    const bar = el(`<div class="toolbar"><input type="search" placeholder="Search titles, summaries, key points…" value="${esc(q0 || "")}"/>
+      <select><option value="">All sections</option>${SECTIONS.map(s => `<option value="${s.id}">${esc(s.title)}</option>`).join("")}</select></div>`);
+    wrap.appendChild(bar);
+    const out = el(`<div></div>`);
+    wrap.appendChild(out);
+    function draw() {
+      const q = bar.querySelector("input").value.toLowerCase().trim();
+      const sf = bar.querySelector("select").value;
+      out.innerHTML = "";
+      let n = 0;
+      let group = null;
+      SECTIONS.forEach(s => {
+        if (sf && s.id !== sf) return;
+        const ts = s.topics.filter(t => !q || [t.title, t.summary || "", (t.tags || []).join(" "), (t.brushup || []).join(" ")].join(" ").toLowerCase().includes(q));
+        if (!ts.length) return;
+        if ((s.group || "Core") !== group) { group = s.group || "Core"; out.appendChild(el(`<h2 style="margin-top:26px">${esc(group)}</h2>`)); }
+        const st = sectionStats(s);
+        out.appendChild(el(`<h3 style="margin:16px 0 8px"><a href="#/section/${s.id}">${s.icon || ""} ${esc(s.title)}</a> <span class="muted" style="font-size:.8rem;font-weight:500">${st.done}/${st.total} done</span></h3>`));
+        ts.forEach(t => {
+          n++;
+          const done = isTopicDone(t.id);
+          out.appendChild(el(`<div class="topic-row ${done ? "done" : ""}"><span class="t-title" data-nav="#/topic/${s.id}/${t.id}?m=key">${esc(t.title)}${t.summary ? `<span class="t-sum">${esc(t.summary)}</span>` : ""}</span>
+            <button class="btn small" data-nav="#/topic/${s.id}/${t.id}?m=key">Key points</button><button class="btn small primary" data-nav="#/topic/${s.id}/${t.id}?m=deep">Deep dive</button></div>`));
+        });
+      });
+      if (!n) out.appendChild(el(`<p class="muted">Nothing matches.${window.__IOS && q ? ` <a href="/os/#/ask?q=${encodeURIComponent(q)}">Research “${esc(q)}” on the web →</a>` : ""}</p>`));
+    }
+    bar.querySelector("input").oninput = draw;
+    bar.querySelector("select").onchange = draw;
+    draw();
     return wrap;
   }
 
@@ -684,6 +751,7 @@
       case "problem": return setView(vProblem(parts[1]), true);
       case "plan": return setView(vPlan(), true);
       case "cram": return setView(vCram());
+      case "topics": return setView(vTopics(q.get("q")));
       default: return setView(vDashboard());
     }
   }
@@ -911,6 +979,7 @@
 
     serverMode = await detectServer();
     if (serverMode) {
+      window.__IOS = true;
       try {
         const d = await (await fetch("/api/progress", { cache: "no-store" })).json();
         const fileSnap = norm(d || {});

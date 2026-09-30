@@ -174,3 +174,11 @@ main.wide{max-width:1400px}
   .pw-left{border-right:none;border-bottom:1px solid var(--border)}
   .tabs{overflow-x:auto}
 }
+
+/* summaries, resources, all-topics */
+.t-sum{display:block;font-weight:400;font-size:.84rem;color:var(--muted);margin-top:2px;line-height:1.4}
+.topic-summary{font-size:1.02rem;color:var(--muted);margin:6px 0 4px;max-width:900px}
+.res-list{list-style:none;padding-left:0}
+.res-list li{margin:6px 0}
+th,td{vertical-align:top}
+@media (max-width:700px){table{display:block;overflow-x:auto}}
