@@ -208,3 +208,10 @@ pre{overflow-x:auto;max-width:100%}
 /* long unbreakable tokens (URLs, identifiers, inline code) must wrap, never widen the page */
 li, p, td, .brushup-box { overflow-wrap: anywhere; }
 :not(pre) > code { overflow-wrap: anywhere; word-break: break-word; }
+
+/* pattern ladder, timer */
+.ladder ol{padding-left:1.2em}
+.ladder li{margin:6px 0}
+.ladder li.lad-done b{text-decoration:line-through;opacity:.7}
+.pw-timer{margin-left:auto}
+.pw-timer .btn.over{background:var(--err);border-color:var(--err);color:#fff}

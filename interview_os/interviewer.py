@@ -24,11 +24,28 @@ SD_PHASE_RX = [
 ]
 
 
+def _pattern_questions():
+    """Real problem statements from the library; strong answers name the pattern and the key steps."""
+    out = []
+    for p in knowledge.library().get("problems", []):
+        if not p.get("pattern") or not p.get("statement"):
+            continue
+        stmt = re.sub(r"\s+", " ", p["statement"]).strip()
+        pts = [p["pattern"]] + [s_.strip() for s_ in (p.get("stuck") or []) if "?" not in s_][:3]
+        if p.get("complexity"):
+            pts.append("complexity " + p["complexity"].split(",")[0])
+        out.append({"q": "%s (%s): %s — Which pattern would you use? Walk me through the approach and its complexity." % (p["title"], p.get("difficulty", ""), stmt[:420]),
+                    "points": [x for x in pts if x], "followups": ["What's the brute force and why is it too slow?", "What edge cases would you test?"],
+                    "level": {"Easy": 1, "Medium": 2, "Hard": 3}.get(p.get("difficulty"), 2), "theme": "pattern"})
+    return out
+
+
 def tracks():
     out = []
     counts = {r["track"]: r["n"] for r in db.rows(db.user().execute("SELECT track, COUNT(*) n FROM custom_questions GROUP BY track"))}
     for k, v in bank.TRACKS.items():
-        out.append(dict(v, id=k, count=len(bank.Q.get(k, [])) + counts.get(k, 0), custom=counts.get(k, 0)))
+        base = len(_pattern_questions()) if k == "patterns" else len(bank.Q.get(k, []))
+        out.append(dict(v, id=k, count=base + counts.get(k, 0), custom=counts.get(k, 0)))
     return out
 
 
@@ -39,7 +56,7 @@ def _custom(track):
 
 def build_session(track, count=5, level=0, company="", include_custom=True, seed=None):
     rnd = random.Random(seed)
-    pool = list(bank.Q.get(track, []))
+    pool = _pattern_questions() if track == "patterns" else list(bank.Q.get(track, []))
     if include_custom:
         pool += [c for c in _custom(track) if c["points"]]
     if level:
@@ -127,6 +144,19 @@ def evaluate(track, question, answer, seconds=0, spoken=False):
         else:
             improve.append("Discuss trade-offs explicitly (“X gives us …, at the cost of …; alternatively …”).")
         extra = {"phases": phases}
+    elif track == "patterns":
+        # the first rubric point is the pattern itself — naming it is what matters most
+        pat_hit = bool(per) and per[0]["hit"] >= 0.5
+        cx = 1.0 if re.search(r"o\s*\(|linear|logarithmic|quadratic|n log n", answer, re.I) else 0.0
+        steps = sum(1 for x in per[1:] if x["covered"]) / max(1, len(per) - 1)
+        score = 10 * (0.45 * (1.0 if pat_hit else 0.0) + 0.3 * steps + 0.15 * cx + 0.1 * min(1.0, d["words"] / 60.0))
+        if pat_hit:
+            strengths.append("Named the right pattern: %s." % per[0]["point"])
+        else:
+            improve.append("Pattern not identified — the expected pattern is: %s." % (per[0]["point"] if per else "?"))
+        if not cx:
+            improve.append("State the time and space complexity.")
+        extra = {}
     else:
         depth = 1.0 if 60 <= d["words"] <= 400 else 0.6 if d["words"] > 400 else max(0.2, d["words"] / 60.0)
         to = min(1.0, d["tradeoffs"] / 2.0)

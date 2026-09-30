@@ -20,6 +20,7 @@ TRACKS = {
     "cloud": {"name": "Cloud, DevOps & Kubernetes", "icon": "☁️", "minutes": 3},
     "frontend": {"name": "JavaScript & Web", "icon": "🌐", "minutes": 3},
     "ml": {"name": "ML & GenAI Systems", "icon": "🤖", "minutes": 4},
+    "patterns": {"name": "DSA pattern drill — explain your approach", "icon": "🧬", "minutes": 4},
     "leadership": {"name": "Tech Lead & Engineering Leadership", "icon": "🧑‍✈️", "minutes": 5},
     "architecture": {"name": "Software Architecture & Craft", "icon": "🏛️", "minutes": 5},
 }

@@ -83,9 +83,11 @@ def status(q, b):
 @route("GET", "/api/library")
 def library(q, b):
     lib = knowledge.library()
-    return {"sections": [{"id": s["id"], "title": s["title"], "icon": s.get("icon", ""), "topics": [{"id": t["id"], "title": t["title"]} for t in s["topics"]]}
+    return {"sections": [{"id": s["id"], "title": s["title"], "icon": s.get("icon", ""),
+                          "topics": [dict({"id": t["id"], "title": t["title"]}, **({"problems": t["problems"]} if t.get("problems") else {})) for t in s["topics"]]}
                          for s in lib["sections"]],
-            "roadmap": lib.get("roadmap", []), "problems": [{"id": p["id"], "title": p["title"], "difficulty": p["difficulty"]} for p in lib["problems"]]}
+            "roadmap": lib.get("roadmap", []),
+            "problems": [{"id": p["id"], "lc": p.get("lc", ""), "title": p["title"], "difficulty": p["difficulty"]} for p in lib["problems"]]}
 
 
 @route("GET", "/api/dashboard")

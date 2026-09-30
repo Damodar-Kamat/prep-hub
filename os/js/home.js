@@ -85,6 +85,40 @@
     }
     grid.appendChild(td);
 
+    // Today's DSA focus: weakest pattern (by ladder progress) and its next problem
+    const pats = (lib.sections.find((x) => x.id === "patterns") || { topics: [] }).topics;
+    if (pats.length) {
+      const byLc = {};
+      (lib.roadmap || []).forEach((r) => (byLc[r.lc] = Object.assign(byLc[r.lc] || {}, { rid: r.id, title: r.title, diff: r.diff, local: r.local })));
+      (lib.problems || []).forEach((p) => { if (p.lc) byLc[p.lc] = Object.assign(byLc[p.lc] || {}, { local: p.id, title: (byLc[p.lc] || {}).title || p.title, diff: (byLc[p.lc] || {}).diff || p.difficulty }); });
+      const isDone = (slug) => {
+        const x = byLc[slug] || {};
+        const pe = x.rid && ph.plan[x.rid];
+        return (x.local && ph.problems[x.local] === "solved") || !!(pe && (pe.r === "got" || pe.got >= 1));
+      };
+      const scored = pats.map((t) => {
+        const ps = t.problems || [];
+        const done = ps.filter(isDone).length;
+        return { t, done, total: ps.length, pct: ps.length ? done / ps.length : 1, next: ps.find((sl) => !isDone(sl)) };
+      }).filter((x) => x.next);
+      scored.sort((a, b) => a.pct - b.pct);
+      const f = scored[0];
+      if (f) {
+        const n = byLc[f.next] || {};
+        const title = n.title || f.next.replace(/-/g, " ");
+        const href = n.local ? "/index.html#/problem/" + n.local : "https://leetcode.com/problems/" + f.next + "/";
+        OS.state.dsaFocus = { pattern: f.t.title, next: title };
+        grid.appendChild(h(`<div class="card"><h3>🧬 Today's DSA focus</h3>
+          <div class="muted small">Weakest pattern by ladder progress</div>
+          <div style="font-size:1.1rem;font-weight:700;margin:6px 0">${esc(f.t.title)}</div>
+          <div class="bar"><i style="width:${Math.round(f.pct * 100)}%"></i></div>
+          <div class="small muted" style="margin-top:4px">${f.done}/${f.total} ladder problems done</div>
+          <div class="row mt"><a class="btn sm" href="/index.html#/topic/patterns/${f.t.id}?m=deep">📖 Learn</a>
+            <a class="btn sm primary" href="${href}" ${n.local ? "" : 'target="_blank" rel="noopener"'}>▶ Next: ${esc(title)}</a></div>
+          <div class="xs dim mt"><a href="/index.html#/patterns">All ${pats.length} patterns →</a></div></div>`));
+      }
+    }
+
     // KPIs
     const solved = Object.values(ph.problems).filter((s) => s === "solved").length;
     const mastered = Object.values(ph.plan).filter((e) => e && e.got >= 2 && e.due == null).length;

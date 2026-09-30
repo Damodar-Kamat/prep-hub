@@ -126,6 +126,29 @@ def seed_library_cards():
                 if front and card_add(front, back, deck=s["title"], source="/index.html#/topic/%s/%s?m=deep" % (s["id"], t["id"]),
                                       ext_id="libq:%s:%s:%d" % (s["id"], t["id"], i)):
                     added += 1
+    # pattern recognition deck: "which pattern fits this problem?" for every roadmap/in-app problem
+    local = {p["id"]: p for p in lib.get("problems", [])}
+    guides = lib.get("guides", {})
+    seen = set()
+    for rp in lib.get("roadmap", []) + [{"lc": p.get("lc"), "title": p["title"], "diff": p["difficulty"], "local": p["id"]} for p in lib.get("problems", []) if p.get("lc")]:
+        slug = rp.get("lc")
+        if not slug or slug in seen:
+            continue
+        seen.add(slug)
+        lp = local.get(rp.get("local") or "")
+        g = guides.get(slug) or {}
+        pattern = (lp or {}).get("pattern") or g.get("pattern")
+        if not pattern:
+            continue
+        steps = (lp or {}).get("stuck") or g.get("steps") or []
+        back = "Pattern: " + pattern + "\n" + "\n".join("• " + x for x in steps[:4])
+        cx = (lp or {}).get("complexity") or g.get("complexity")
+        if cx:
+            back += "\nComplexity: " + cx
+        href = "/index.html#/problem/" + rp["local"] if rp.get("local") else "https://leetcode.com/problems/%s/" % slug
+        if card_add("Which pattern fits: %s (%s)?" % (rp["title"], rp.get("diff") or ""), back, deck="Pattern recognition",
+                    source=href, ext_id="pat:" + slug):
+            added += 1
     for track, qs in bank.Q.items():
         for i, q in enumerate(qs):
             if card_add(q["q"], "\n".join("• " + p for p in q["points"]), deck="Q-bank · " + bank.TRACKS[track]["name"],

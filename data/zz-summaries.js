@@ -4,7 +4,7 @@
   const S = window.STUDY_SECTIONS || [];
 
   const GROUPS = {
-    dsa: "Core CS & Algorithms", cs: "Core CS & Algorithms", hw: "Core CS & Algorithms",
+    dsa: "Core CS & Algorithms", patterns: "Core CS & Algorithms", cs: "Core CS & Algorithms", hw: "Core CS & Algorithms",
     lld: "System & Software Design", hld: "System & Software Design", "hld-cases": "System & Software Design", architecture: "System & Software Design",
     java: "Languages & Runtimes", python: "Languages & Runtimes", web: "Languages & Runtimes",
     databases: "Data, Distributed & Infrastructure", distributed: "Data, Distributed & Infrastructure",

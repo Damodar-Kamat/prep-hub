@@ -113,6 +113,7 @@
   const TABS = [
     ["#/", "Dashboard"],
     ["#/topics", "All topics"],
+    ["#/patterns", "Patterns"],
     ...(ROADMAP.length ? [["#/plan", "DSA Plan"]] : []),
     ["#/practice", "DSA Practice"],
     ["#/cram", "Last-Minute Prep"],
@@ -164,6 +165,14 @@
     const pgrid = el(`<div class="grid"></div>`);
     grid.appendChild(el(`<h2 style="margin:22px 0 10px">Practice</h2>`));
     grid.appendChild(pgrid);
+    if (PATTERNS.length) {
+      const all = PATTERNS.map(patternStats), d = all.reduce((a, x) => a + x.done, 0), tt = all.reduce((a, x) => a + x.total, 0);
+      pgrid.appendChild(el(`<div class="card section-card" data-nav="#/patterns">
+        <div class="big">🧬</div><h3>Pattern Mastery</h3>
+        <p class="muted">${PATTERNS.length} patterns, each with an explanation, templates, a traced example and a problem ladder. See your weakest pattern and the next problem to solve.</p>
+        <div class="muted">${d}/${tt} ladder problems done</div>
+        <div class="progress-bar"><i style="width:${tt ? d / tt * 100 : 0}%"></i></div></div>`));
+    }
     if (ROADMAP_PROBLEMS.length) {
       const att = ROADMAP_PROBLEMS.filter(x => planEntry(x.id)).length;
       const streak = currentStreak();
@@ -267,10 +276,12 @@
         if (t.diagram) body.appendChild(el(`<figure class="diagram">${t.diagram}${t.diagramCaption ? `<figcaption>${esc(t.diagramCaption)}</figcaption>` : ""}</figure>`));
         if (t.pitfalls) body.appendChild(el(`<h3>Common pitfalls / gotchas</h3><ul>${t.pitfalls.map(p => `<li>${p}</li>`).join("")}</ul>`));
         if (t.interviewQs) body.appendChild(el(`<h3>Likely interview questions</h3><ul>${t.interviewQs.map(p => `<li>${esc(p)}</li>`).join("")}</ul>`));
+        body.appendChild(problemLadder(t));
         body.appendChild(resourcesBlock(t));
       } else {
         body.appendChild(el(`<div class="brushup-box"><h4>★ Key points — ${esc(t.title)}</h4><ul>${(t.brushup || []).map(b => `<li>${b}</li>`).join("")}</ul></div>`));
         body.appendChild(el(`<p class="muted" style="font-size:.85rem">Want the full explanation? Open <a href="#/topic/${s.id}/${t.id}?m=deep">📖 Deep dive</a>.</p>`));
+        body.appendChild(problemLadder(t));
         body.appendChild(resourcesBlock(t));
       }
       actions.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("primary", b.dataset.m === (m === "deep" ? "deep" : "key")));
@@ -342,6 +353,40 @@
     return wrap;
   }
 
+  function vPatterns() {
+    const wrap = el(`<div></div>`);
+    wrap.appendChild(el(`<h1>🧬 Pattern mastery</h1>`));
+    if (!PATTERNS.length) { wrap.appendChild(el(`<p class="muted">No pattern data loaded.</p>`)); return wrap; }
+    const all = PATTERNS.map(t => ({ t, st: patternStats(t) }));
+    const totalDone = all.reduce((a, x) => a + x.st.done, 0), total = all.reduce((a, x) => a + x.st.total, 0);
+    wrap.appendChild(el(`<p class="muted">Learn a pattern (📖), then climb its practice ladder. ${totalDone}/${total} ladder problems done across ${PATTERNS.length} patterns. Progress counts problems solved in-app or rated ✅ in the DSA Plan.</p>`));
+    const bar = el(`<div class="toolbar"><select><option value="order">Recommended order</option><option value="weak">Weakest first</option><option value="strong">Strongest first</option></select></div>`);
+    wrap.appendChild(bar);
+    const list = el(`<div class="grid"></div>`);
+    wrap.appendChild(list);
+    function draw() {
+      const mode = bar.querySelector("select").value;
+      const rows = [...all];
+      if (mode === "weak") rows.sort((a, b) => a.st.pct - b.st.pct);
+      if (mode === "strong") rows.sort((a, b) => b.st.pct - a.st.pct);
+      list.innerHTML = "";
+      rows.forEach(({ t, st }) => {
+        const n = st.next;
+        list.appendChild(el(`<div class="card">
+          <h3 style="margin-top:0"><a href="#/topic/patterns/${t.id}?m=deep">${esc(t.title)}</a></h3>
+          <p class="muted" style="font-size:.85rem">${esc(t.summary || "")}</p>
+          <div class="muted" style="font-size:.85rem">${st.done}/${st.total} done · ${st.pct}%</div>
+          <div class="progress-bar"><i style="width:${st.pct}%"></i></div>
+          <div style="margin-top:10px;font-size:.88rem">${n ? `Next: <b>${esc(n.title)}</b> ${n.diff ? diffPill(n.diff) : ""} ${n.local ? `<a href="#/problem/${n.local}">▶ solve</a>` : `<a href="https://leetcode.com/problems/${n.slug}/" target="_blank" rel="noopener">LC ↗</a>`}` : "🎉 Ladder complete — revisit hard ones in a week."}</div>
+          <div style="margin-top:8px"><a class="btn small" href="#/topic/patterns/${t.id}?m=key">Key points</a> <a class="btn small primary" href="#/topic/patterns/${t.id}?m=deep">Learn</a></div>
+        </div>`));
+      });
+    }
+    bar.querySelector("select").onchange = draw;
+    draw();
+    return wrap;
+  }
+
   function vCram() {
     const wrap = el(`<div></div>`);
     wrap.appendChild(el(`<h1>Last-Minute Prep</h1>`));
@@ -376,6 +421,42 @@
     return wrap;
   }
 
+  // ---------- pattern helpers ----------
+  const PATTERN_SECTION = SECTIONS.find(x => x.id === "patterns");
+  const PATTERNS = PATTERN_SECTION ? PATTERN_SECTION.topics : [];
+  const humanize = (slug) => slug.split("-").map(w => w[0].toUpperCase() + w.slice(1)).join(" ");
+  function slugInfo(slug) {
+    const rp = ROADMAP_PROBLEMS.find(x => x.lc === slug);
+    const lp = PROBLEMS.find(x => x.lc === slug || x.id === (rp && rp.local));
+    const title = (rp && rp.title) || (lp && lp.title) || humanize(slug);
+    const diff = (rp && rp.diff) || (lp && lp.difficulty) || "";
+    const local = lp ? lp.id : null;
+    const pe = rp ? planEntry(rp.id) : null;
+    const done = (local && problemState(local) === "solved") || !!(pe && (pe.r === "got" || pe.got >= 1));
+    const tried = done || !!pe || !!(local && problemState(local));
+    return { slug, title, diff, local, done, tried };
+  }
+  function patternsForProblem(p) {
+    const slug = p.lc || (ROADMAP_PROBLEMS.find(x => x.local === p.id) || {}).lc;
+    return slug ? PATTERNS.filter(t => (t.problems || []).includes(slug)) : [];
+  }
+  function patternStats(t) {
+    const items = (t.problems || []).map(slugInfo);
+    const done = items.filter(x => x.done).length;
+    return { items, done, total: items.length, pct: items.length ? Math.round(100 * done / items.length) : 0, next: items.find(x => !x.done) };
+  }
+  function problemLadder(t) {
+    if (!t.problems || !t.problems.length) return el(`<div></div>`);
+    const st = patternStats(t);
+    return el(`<div class="card ladder" style="margin:18px 0">
+      <h3 style="margin-top:0">🧩 Practice ladder — ${st.done}/${st.total} done</h3>
+      <div class="progress-bar" style="margin-bottom:10px"><i style="width:${st.pct}%"></i></div>
+      <ol>${st.items.map(x => `<li class="${x.done ? "lad-done" : ""}">${x.done ? "✅" : x.tried ? "🟡" : "⬜"} <b>${esc(x.title)}</b> ${x.diff ? diffPill(x.diff) : ""}
+        ${x.local ? `<a href="#/problem/${x.local}">▶ solve in-app</a>` : ""} <a href="https://leetcode.com/problems/${x.slug}/" target="_blank" rel="noopener">LeetCode ↗</a></li>`).join("")}</ol>
+      <p class="muted" style="font-size:.85rem;margin-bottom:0">Ordered easy → hard. Solve at least the first half before moving to the next pattern; re-solve anything 🟡 after 3 days.</p>
+    </div>`);
+  }
+
   // generic ladder used when a problem has no specific one
   const GENERIC_STUCK = [
     "Restate the problem in your own words. What exactly are the inputs, outputs and constraints (n up to?).",
@@ -390,7 +471,8 @@
       <p class="muted">Try each step for a couple of minutes before revealing the next. Interviewers give hints like these — using them well is a skill.</p>
       <ol class="stuck-steps">${steps.map((st, i) => `<li class="${i ? "hidden-step" : ""}">${st}</li>`).join("")}</ol>
       <button class="btn small" data-next-step ${steps.length > 1 ? "" : "hidden"}>Reveal next step →</button>
-      ${p.pattern ? `<details class="spoiler" style="margin-top:14px"><summary>Show the pattern</summary><div style="padding-bottom:10px"><b>${esc(p.pattern)}</b></div></details>` : ""}
+      ${p.pattern || patternsForProblem(p).length ? `<details class="spoiler" style="margin-top:14px"><summary>Show the pattern</summary><div style="padding-bottom:10px">${p.pattern ? `<b>${esc(p.pattern)}</b>` : ""}
+        ${patternsForProblem(p).map(t => `<div>📘 <a href="#/topic/patterns/${t.id}?m=deep">Learn: ${esc(t.title)}</a></div>`).join("")}</div></details>` : ""}
       ${p.complexity ? `<details class="spoiler"><summary>Show target complexity</summary><div style="padding-bottom:10px">${esc(p.complexity)}</div></details>` : ""}
       ${p.lc ? `<p style="margin-top:14px"><a href="https://leetcode.com/problems/${p.lc}/" target="_blank" rel="noopener">Also on LeetCode ↗</a></p>` : ""}`;
   }
@@ -515,7 +597,28 @@
         <select id="langSel">${LANGS.map(([v, n]) => `<option value="${v}"${v === lang ? " selected" : ""}>${n}</option>`).join("")}</select>
       </label>
       <span class="muted lang-note"></span>
+      <span class="pw-timer" title="Interview timer — Easy 15 min, Medium 25 min, Hard 40 min">
+        <button class="btn small" data-timer>⏱ Start ${({ Easy: 15, Medium: 25, Hard: 40 })[p.difficulty] || 25}:00</button>
+      </span>
     </div>`);
+    // interview timer: counts down the typical time budget for the difficulty
+    (function () {
+      const tb = langBar.querySelector("[data-timer]");
+      const budget = (({ Easy: 15, Medium: 25, Hard: 40 })[p.difficulty] || 25) * 60;
+      let left = budget, iv = null;
+      const fmt = (x) => (x < 0 ? "-" : "") + Math.floor(Math.abs(x) / 60) + ":" + String(Math.abs(x) % 60).padStart(2, "0");
+      tb.onclick = () => {
+        if (iv) { clearInterval(iv); iv = null; tb.textContent = "⏱ Resume " + fmt(left); return; }
+        tb.classList.add("primary");
+        iv = setInterval(() => {
+          if (!document.body.contains(tb)) { clearInterval(iv); return; }
+          left--;
+          tb.textContent = (left < 0 ? "⏰ Over " : "⏸ ") + fmt(left);
+          tb.classList.toggle("over", left < 0);
+          if (left === 0) tb.title = "Time budget used — in a real interview, state your best approach and code it.";
+        }, 1000);
+      };
+    })();
     const langSel = langBar.querySelector("#langSel");
     const langNote = langBar.querySelector(".lang-note");
 
@@ -806,6 +909,7 @@
       case "plan": return setView(vPlan(), true);
       case "cram": return setView(vCram());
       case "topics": return setView(vTopics(q.get("q")));
+      case "patterns": return setView(vPatterns());
       default: return setView(vDashboard());
     }
   }
