@@ -87,31 +87,67 @@
 
   // ---------------------------------------------------------------- router
   OS.nav = [
-    ["Prepare", null],
-    ["#/", "🏠", "Home"],
+    ["#/", "🏠", "Dashboard"],
+    ["Learn", null],
+    ["#/learn", "📚", "Learn hub"],
+    ["#/learn/dsa", "🧠", "DSA"],
+    ["#/learn/system-design", "🏗️", "System Design"],
     ["#/ask", "🔭", "Research agent"],
-    ["#/mock", "🎙️", "Mock interview"],
-    ["#/cards", "🃏", "Flashcards"],
-    ["#/plan", "🗓️", "Study plan"],
-    ["Target", null],
-    ["#/company", "🏢", "Company intel"],
-    ["#/pipeline", "📋", "Applications"],
-    ["#/jd", "🎯", "JD matcher"],
-    ["#/stories", "⭐", "Story bank"],
-    ["Build & learn", null],
-    ["#/lab", "⌨️", "Code lab"],
-    ["#/questions", "❓", "Question bank"],
     ["#/notes", "📝", "Notebook"],
     ["#/feed", "📰", "Eng. blogs & HN"],
+    ["Practice", null],
+    ["#/practice", "💻", "Practice hub"],
+    ["/index.html#/practice", "🧩", "Coding"],
+    ["#/mcq", "✅", "MCQ"],
+    ["#/sql", "🗄️", "SQL"],
+    ["#/debug", "🐞", "Debugging"],
+    ["#/scenarios", "🚨", "Scenarios"],
+    ["#/lab", "⌨️", "Code lab"],
+    ["Interview", null],
+    ["#/mock", "🎙️", "Mock interview"],
+    ["#/mock?track=behavioral", "🗣️", "Behavioral"],
+    ["#/project", "📁", "Project round"],
+    ["#/mock?track=system-design", "🏗️", "System design"],
+    ["#/stories", "⭐", "Story bank"],
+    ["#/questions", "❓", "Question bank"],
+    ["Companies", null],
+    ["#/companyq", "🏢", "Company questions"],
+    ["#/roles", "🧭", "Roles"],
+    ["#/interviews", "📝", "Interview experiences"],
+    ["#/company", "🕵️", "Company intel agent"],
+    ["#/pipeline", "📋", "Applications"],
+    ["Revision", null],
+    ["#/revision", "📅", "Due today"],
+    ["#/revision?tab=bookmarks", "🔖", "Bookmarks"],
+    ["#/revision?tab=weak", "📉", "Weak topics"],
+    ["#/revision?tab=mistakes", "❌", "Mistakes"],
+    ["#/cards", "🃏", "Flashcards"],
+    ["#/plan", "🗓️", "Study plan"],
+    ["Resume", null],
+    ["#/resume", "📄", "Resume analysis"],
+    ["#/resume?tab=questions", "❓", "Resume questions"],
+    ["#/jd", "🎯", "JD matcher"],
+    ["Analytics", null],
+    ["#/analytics", "📈", "Progress"],
+    ["#/analytics?tab=skills", "🧠", "Skills"],
+    ["#/analytics?tab=accuracy", "🎯", "Accuracy"],
+    ["#/analytics?tab=history", "🗂️", "Interview history"],
+    ["", null],
     ["#/settings", "⚙️", "Settings"],
   ];
   function renderNav() {
     const nav = OS.$("#nav"); nav.innerHTML = "";
-    const cur = location.hash.split("?")[0] || "#/";
-    for (const [href, ic, label] of OS.nav) {
-      if (!ic) { nav.appendChild(OS.h(`<div class="nav-h">${href}</div>`)); continue; }
-      const a = OS.h(`<a href="${href}"><span class="ic">${ic}</span>${label}<span class="badge hide" data-badge="${href}"></span></a>`);
-      if (href === cur || (href !== "#/" && cur.startsWith(href))) a.classList.add("active");
+    const full = location.hash || "#/", cur = full.split("?")[0] || "#/";
+    const items = OS.nav.filter((n) => n[1]);
+    // exact match (incl. query) wins; otherwise the longest path-prefix item without a query
+    let act = items.find((n) => n[0] === full);
+    if (!act) act = items.filter((n) => !n[0].includes("?") && n[0].startsWith("#") && (n[0] === cur || (n[0] !== "#/" && cur.startsWith(n[0] + "/"))))
+      .sort((x, y) => y[0].length - x[0].length)[0];
+    for (const n of OS.nav) {
+      const [href, ic, label] = n;
+      if (!ic) { if (href) nav.appendChild(OS.h(`<div class="nav-h">${href}</div>`)); else nav.appendChild(OS.h(`<div style="height:8px"></div>`)); continue; }
+      const a = OS.h(`<a href="${href}"><span class="ic">${ic}</span>${label}${href.startsWith("/") ? ' <span class="xs dim">↗</span>' : ""}<span class="badge hide" data-badge="${href}"></span></a>`);
+      if (n === act) a.classList.add("active");
       nav.appendChild(a);
     }
     OS.refreshBadges();
@@ -120,6 +156,8 @@
     try {
       const s = await OS.get("/cards/stats");
       const b = OS.$('[data-badge="#/cards"]');
+      const r = OS.$('[data-badge="#/revision"]');
+      if (r && s.due) { r.textContent = s.due > 999 ? "999+" : s.due; r.classList.remove("hide"); r.classList.add("acc"); }
       if (b && s.due) { b.textContent = s.due > 999 ? "999+" : s.due; b.classList.remove("hide"); b.classList.add("acc"); }
     } catch (_) {}
   };
@@ -142,7 +180,7 @@
 
   // ---------------------------------------------------------------- command palette (⌘K)
   const COMMANDS = () => [
-    ...OS.nav.filter((n) => n[1]).map((n) => ({ grp: "Go to", icon: n[1], label: n[2], run: () => OS.go(n[0]) })),
+    ...OS.nav.filter((n) => n[1]).map((n) => ({ grp: "Go to", icon: n[1], label: n[2], run: () => (n[0].startsWith("/") ? (location.href = n[0]) : OS.go(n[0])) })),
     { grp: "Go to", icon: "📚", label: "Prep Hub library (DSA plan, concepts, practice)", run: () => (location.href = "/index.html") },
     { grp: "Go to", icon: "⚡", label: "Last-minute cram sheet", run: () => (location.href = "/index.html#/cram") },
     { grp: "Do", icon: "🎙️", label: "Start a behavioral mock", run: () => OS.go("#/mock?track=behavioral&start=1") },

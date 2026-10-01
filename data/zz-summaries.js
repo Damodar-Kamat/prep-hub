@@ -6,9 +6,11 @@
   const GROUPS = {
     dsa: "Core CS & Algorithms", patterns: "Core CS & Algorithms", cs: "Core CS & Algorithms", hw: "Core CS & Algorithms",
     lld: "System & Software Design", hld: "System & Software Design", "hld-cases": "System & Software Design", architecture: "System & Software Design",
-    java: "Languages & Runtimes", python: "Languages & Runtimes", web: "Languages & Runtimes",
+    java: "Languages & Runtimes", spring: "Languages & Runtimes", python: "Languages & Runtimes", web: "Languages & Runtimes",
     databases: "Data, Distributed & Infrastructure", distributed: "Data, Distributed & Infrastructure",
-    "data-eng": "Data, Distributed & Infrastructure", cloud: "Data, Distributed & Infrastructure", security: "Data, Distributed & Infrastructure",
+    "data-eng": "Data, Distributed & Infrastructure", kafka: "Data, Distributed & Infrastructure", microservices: "System & Software Design",
+    networking: "Data, Distributed & Infrastructure", cloud: "Data, Distributed & Infrastructure", kubernetes: "Data, Distributed & Infrastructure",
+    devops: "Data, Distributed & Infrastructure", security: "Data, Distributed & Infrastructure",
     ml: "AI & Machine Learning",
     leadership: "Engineering Leadership",
     career: "Career & Behavioral",

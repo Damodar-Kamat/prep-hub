@@ -25,6 +25,7 @@ def card_add(front, back, deck="General", source="", ext_id=None):
         db.user().commit()
         return cur.lastrowid
     except Exception:
+        db.user().rollback()   # a failed INSERT (duplicate ext_id) must not leave a write transaction open
         return None
 
 

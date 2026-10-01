@@ -29,6 +29,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, ROOT)
 
 from interview_os import agents, bank, db, interviewer, jobs, knowledge, llm, search, tools  # noqa: E402
+from interview_os import debugbank, mcq, practice, scenarios, sqlbank  # noqa: E402
 from interview_os import reader as rdr  # noqa: E402
 
 ROUTES = []
@@ -332,7 +333,10 @@ def mock_tracks(q, b):
 
 @route("POST", "/api/mock/session")
 def mock_session(q, b):
-    return interviewer.build_session(b.get("track", "behavioral"), int(b.get("count", 5)), int(b.get("level", 0)), b.get("company", ""))
+    project = b.get("project")
+    if b.get("track") == "project" and not project:
+        project = db.kv_get("project", {})
+    return interviewer.build_session(b.get("track", "behavioral"), int(b.get("count", 5)), int(b.get("level", 0)), b.get("company", ""), project=project)
 
 
 @route("POST", "/api/mock/evaluate")
@@ -358,6 +362,229 @@ def mock_get(q, b, sid):
     d = dict(r)
     d["data"] = json.loads(d["data"])
     return d
+
+
+# ------------------------------------------------------------------ practice: MCQ, SQL, debugging, scenarios, project
+def _progress(b=None):
+    """Prep Hub progress: the browser's live copy when the page sends it, else private/progress.json."""
+    if b and isinstance(b.get("progress"), dict) and b["progress"]:
+        return b["progress"]
+    try:
+        with open(PROGRESS) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+@route("GET", "/api/learn")
+def learn(q, b):
+    return {"subjects": practice.learn_subjects()}
+
+
+@route("GET", "/api/mcq")
+def mcq_get(q, b):
+    if q.get("ids"):
+        qs = [mcq.BY_ID[i] for i in q["ids"].split(",") if i in mcq.BY_ID]
+        qs = [{k: x[k] for k in ("id", "subject", "q", "options")} for x in qs]
+    else:
+        qs = practice.mcq_quiz(q.get("subject", ""), int(q.get("count", 10)), q.get("mode", ""))
+    return {"questions": qs,
+            "subjects": practice.mcq_stats()}
+
+
+@route("POST", "/api/mcq/answer")
+def mcq_answer(q, b):
+    need(b, "id")
+    r = practice.mcq_answer(b["id"], int(b.get("choice", -1)))
+    if r is None:
+        raise HttpError(404, "unknown question")
+    return r
+
+
+@route("GET", "/api/sql")
+def sql_list(q, b):
+    return {"challenges": sqlbank.public_challenges(), "schema": sqlbank.schema_info(), "solved": sorted(practice.solved_set("sql"))}
+
+
+@route("POST", "/api/sql/run")
+def sql_run(q, b):
+    return practice.sql_run(b.get("sql", ""), b.get("id"))
+
+
+@route("GET", "/api/sql/solution/([\\w-]+)")
+def sql_solution(q, b, cid):
+    c = sqlbank.BY_ID.get(cid)
+    if not c:
+        raise HttpError(404, "not found")
+    return {"solution": c["solution"]}
+
+
+@route("GET", "/api/debug")
+def debug_list(q, b):
+    return {"exercises": debugbank.public(), "solved": sorted(practice.solved_set("debug")), "langs": tools.runner_langs()}
+
+
+@route("POST", "/api/debug/run")
+def debug_run(q, b):
+    need(b, "id", "code")
+    r = practice.debug_run(b["id"], b["code"], tools.run_code)
+    if r is None:
+        raise HttpError(404, "unknown exercise")
+    return r
+
+
+@route("GET", "/api/debug/solution/([\\w-]+)")
+def debug_solution(q, b, eid):
+    r = debugbank.reveal(eid)
+    if not r:
+        raise HttpError(404, "not found")
+    return r
+
+
+@route("GET", "/api/scenarios")
+def scenario_list(q, b):
+    done = {r["ref"]: r for r in db.rows(db.user().execute(
+        "SELECT ref, MAX(score) best, COUNT(*) n FROM attempts WHERE kind='scenario' GROUP BY ref"))}
+    out = []
+    for i, s in enumerate(scenarios.SCENARIOS):
+        ref = "scenarios:" + s["q"][:120]
+        d = done.get(ref) or {}
+        out.append(dict(s, id=i, ref=ref, best=d.get("best"), tries=d.get("n", 0)))
+    return {"scenarios": out}
+
+
+@route("POST", "/api/attempts")
+def attempt_add(q, b):
+    need(b, "kind", "ref")
+    return {"id": practice.record(b["kind"], b["ref"], bool(b.get("correct")), b.get("title", ""), b.get("subject", ""),
+                                  b.get("score"), b.get("detail"))}
+
+
+@route("GET", "/api/project")
+def project_get(q, b):
+    return {"project": db.kv_get("project", {"name": "", "text": ""})}
+
+
+@route("POST", "/api/project")
+def project_set(q, b):
+    prj = {"name": b.get("name", "")[:200], "text": b.get("text", "")[:20000]}
+    db.kv_set("project", prj)
+    qs, skills = scenarios.project_questions(prj["text"], prj["name"])
+    return {"ok": True, "questions": len(qs), "skills": skills}
+
+
+# ------------------------------------------------------------------ revision: bookmarks, mistakes, weak topics, due today
+@route("GET", "/api/bookmarks")
+def bm_list(q, b):
+    return {"bookmarks": practice.bookmarks(q.get("kind"))}
+
+
+@route("POST", "/api/bookmarks")
+def bm_toggle(q, b):
+    need(b, "kind", "ref", "title")
+    return practice.bookmark_toggle(b["kind"], b["ref"], b["title"], b.get("href", ""), b.get("note", ""))
+
+
+@route("GET", "/api/mistakes")
+def mistakes(q, b):
+    return {"mistakes": practice.mistakes("all" in q)}
+
+
+@route("POST", "/api/mistakes/resolve")
+def mistakes_resolve(q, b):
+    need(b, "kind", "ref")
+    return practice.resolve(b["kind"], b["ref"])
+
+
+@route("GET", "/api/weak")
+def weak(q, b):
+    return practice.weak_topics(_progress())
+
+
+@route("POST", "/api/weak")
+def weak_post(q, b):
+    return practice.weak_topics(_progress(b))
+
+
+@route("GET", "/api/revision")
+def revision(q, b):
+    return revision_post(q, {})
+
+
+@route("POST", "/api/revision")
+def revision_post(q, b):
+    prog = _progress(b)
+    today = time.strftime("%Y-%m-%d")
+    lib = knowledge.library()
+    rm = {r["id"]: r for r in lib.get("roadmap", [])}
+    plan_due = []
+    for pid, e in (prog.get("plan") or {}).items():
+        if isinstance(e, dict) and e.get("due") and e["due"] <= today:
+            r = rm.get(pid) or {}
+            plan_due.append({"id": pid, "title": r.get("title", pid), "due": e["due"], "rating": e.get("r"), "local": r.get("local", ""), "lc": r.get("lc", "")})
+    plan_due.sort(key=lambda x: x["due"])
+    ms = practice.mistakes()
+    return {"cards": tools.card_stats(), "plan_due": plan_due, "mistakes": ms[:10], "mistakes_total": len(ms),
+            "bookmarks": len(practice.bookmarks())}
+
+
+# ------------------------------------------------------------------ companies, roles, interviews, resume, analytics
+@route("GET", "/api/roles")
+def roles(q, b):
+    return {"roles": practice.roles()}
+
+
+@route("GET", "/api/company-bank")
+def company_bank(q, b):
+    return practice.company_bank(q.get("company", ""))
+
+
+@route("GET", "/api/interviews")
+def interviews(q, b):
+    return {"interviews": practice.interviews()}
+
+
+@route("POST", "/api/interviews")
+def interview_save(q, b):
+    need(b, "company")
+    return practice.interview_save(b)
+
+
+@route("DELETE", "/api/interviews/(\\d+)")
+def interview_del(q, b, iid):
+    return practice.interview_delete(int(iid))
+
+
+@route("GET", "/api/resume")
+def resume_get(q, b):
+    return {"resume": db.kv_get("resume", {"text": "", "jd": ""})}
+
+
+@route("POST", "/api/resume/analyze")
+def resume_analyze(q, b):
+    text = b.get("text", "")[:40000]
+    if not text.strip():
+        raise HttpError(400, "paste your resume text")
+    db.kv_set("resume", {"text": text, "jd": b.get("jd", "")[:20000]})
+    return practice.resume_analyze(text, b.get("jd", ""))
+
+
+@route("POST", "/api/resume/questions")
+def resume_questions(q, b):
+    text = b.get("text") or (db.kv_get("resume", {}) or {}).get("text", "")
+    if not text.strip():
+        raise HttpError(400, "paste your resume text")
+    return practice.resume_questions(text)
+
+
+@route("GET", "/api/analytics")
+def analytics(q, b):
+    return practice.analytics(_progress())
+
+
+@route("POST", "/api/analytics")
+def analytics_post(q, b):
+    return practice.analytics(_progress(b))
 
 
 @route("GET", "/api/questions")
@@ -528,7 +755,7 @@ def settings_set(q, b):
 def export(q, b):
     u = db.user()
     out = {"exported": time.time()}
-    for t in ("kv", "cards", "notes", "companies", "stories", "mock_sessions", "activity", "custom_questions", "reviews"):
+    for t in ("kv", "cards", "notes", "companies", "stories", "mock_sessions", "activity", "custom_questions", "reviews", "attempts", "bookmarks", "interviews"):
         out[t] = db.rows(u.execute("SELECT * FROM %s" % t))
     return out
 
@@ -537,7 +764,7 @@ def load_data(data, replace=False):
     u = db.user()
     n = 0
     verb = "INSERT OR REPLACE" if replace else "INSERT OR IGNORE"
-    for t in ("kv", "cards", "notes", "companies", "stories", "mock_sessions", "activity", "custom_questions", "reviews"):
+    for t in ("kv", "cards", "notes", "companies", "stories", "mock_sessions", "activity", "custom_questions", "reviews", "attempts", "bookmarks", "interviews"):
         for r in data.get(t, []):
             cols = list(r.keys())
             u.execute("%s INTO %s(%s) VALUES (%s)" % (verb, t, ",".join(cols), ",".join("?" * len(cols))), [r[c] for c in cols])
@@ -664,7 +891,7 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "InterviewOS/1.0"
 
     def log_message(self, fmt, *args):
-        if "/api/jobs/" in (args[0] if args else ""):
+        if "/api/jobs/" in (str(args[0]) if args else ""):
             return
         sys.stderr.write("%s  %s\n" % (time.strftime("%H:%M:%S"), fmt % args))
 
@@ -708,6 +935,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     traceback.print_exc()
                     return self._send(500, {"error": "%s: %s" % (type(e).__name__, e)})
+                finally:  # never let a request leave a write transaction open (it would lock user.db for everyone)
+                    for c in (db.user(), db.cache()):
+                        if c.in_transaction:
+                            c.rollback()
         return self._send(404, {"error": "no route %s %s" % (method, u.path)})
 
     def _static(self):
@@ -897,6 +1128,7 @@ def main():
         print("✗ refusing to listen on %s without a password: set IOS_PASSWORD (the Code lab runs code on this machine)" % a.host)
         sys.exit(2)
     db.init()
+    practice.init()
     os.makedirs(PRIVATE, exist_ok=True)
     setup_private_repo()
     restore_backup()
@@ -904,6 +1136,7 @@ def main():
     n = tools.seed_library_cards()      # idempotent: only adds cards for new topics/questions
     if n:
         print("added %d flashcards from the library + question bank" % n)
+    db.user().commit()
     threading.Thread(target=background, daemon=True).start()
     threading.Thread(target=backup_loop, daemon=True).start()
     def shutdown(signum, frame):  # Render/containers send SIGTERM before stopping: save first

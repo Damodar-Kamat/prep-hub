@@ -4,7 +4,7 @@ import json
 import random
 import re
 
-from . import bank, db, knowledge, llm, nlp
+from . import bank, db, knowledge, llm, nlp, scenarios
 
 FILLERS = ["um", "uh", "erm", "like", "basically", "you know", "sort of", "kind of", "actually", "literally", "i mean", "so yeah"]
 STAR = {
@@ -44,7 +44,7 @@ def tracks():
     out = []
     counts = {r["track"]: r["n"] for r in db.rows(db.user().execute("SELECT track, COUNT(*) n FROM custom_questions GROUP BY track"))}
     for k, v in bank.TRACKS.items():
-        base = len(_pattern_questions()) if k == "patterns" else len(bank.Q.get(k, []))
+        base = len(_pattern_questions()) if k == "patterns" else len(scenarios.PROJECT_GENERIC) if k == "project" else len(bank.Q.get(k, []))
         out.append(dict(v, id=k, count=base + counts.get(k, 0), custom=counts.get(k, 0)))
     return out
 
@@ -54,8 +54,19 @@ def _custom(track):
     return [{"q": r["q"], "points": json.loads(r["points"] or "[]"), "followups": [], "level": 2, "source": r["source"], "custom": True} for r in rs]
 
 
-def build_session(track, count=5, level=0, company="", include_custom=True, seed=None):
+def build_session(track, count=5, level=0, company="", include_custom=True, seed=None, project=None):
     rnd = random.Random(seed)
+    if track == "project":
+        prj = project or {}
+        qs, skills = scenarios.project_questions(prj.get("text", ""), prj.get("name", ""))
+        # always open with the overview, then mix tech probes / claims / generic deep dives
+        head, rest = qs[:1], qs[1:]
+        rnd.shuffle(rest)
+        tech = [q for q in rest if q.get("theme") in ("tech", "claim")]
+        other = [q for q in rest if q not in tech]
+        pick = head + tech[:max(1, count // 2)] + other
+        return {"track": track, "track_name": bank.TRACKS["project"]["name"], "company": company, "minutes_per_q": bank.TRACKS["project"]["minutes"],
+                "questions": pick[:count], "phases": None, "values": None, "skills": skills}
     pool = _pattern_questions() if track == "patterns" else list(bank.Q.get(track, []))
     if include_custom:
         pool += [c for c in _custom(track) if c["points"]]
@@ -217,4 +228,14 @@ def save_session(data):
                             (data.get("track"), data.get("company", ""), data.get("started"), data.get("ended"), avg, json.dumps(data)))
     db.user().commit()
     db.bump_activity(minutes=max(0, ((data.get("ended") or 0) - (data.get("started") or 0)) / 60.0))
+    # every graded answer feeds Accuracy / Weak topics; weak answers land in the Mistakes log
+    from . import practice
+    track = data.get("track") or ""
+    kind = "project" if track == "project" else "scenario" if track == "scenarios" else "mock"
+    for i, a in enumerate(data.get("answers", [])):
+        sc = (a.get("eval") or {}).get("score")
+        if sc is None:
+            continue
+        ref = ("%s:%d" % (cur.lastrowid, i)) if kind == "mock" else ("%s:%s" % (track, a.get("q", "")[:120]))
+        practice.record(kind, ref, sc >= 6.5, a.get("q", ""), practice.TRACK_SUBJECT.get(track, track), score=sc, detail={"session": cur.lastrowid})
     return {"id": cur.lastrowid, "score": avg}

@@ -60,6 +60,21 @@
     store.plan[pid] = e;
     bumpActivity();
     save();
+    const rp = ROADMAP_PROBLEMS.find((x) => x.id === pid);
+    iosPost("/attempts", { kind: "plan", ref: pid, title: rp ? rp.title : pid, subject: "dsa", correct: rating === "got", score: { got: 9, shaky: 5, bombed: 2 }[rating] });
+  }
+  // When served by Interview OS: feed graded results into its accuracy / mistakes log, and sync bookmarks.
+  function iosPost(path, body) {
+    if (!window.__IOS) return Promise.resolve(null);
+    return fetch("/api" + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+      .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  }
+  function bookmarkBtn(kind, ref, title, href) {
+    const b = el(`<button class="btn bm-btn" title="Bookmark in Interview OS">☆ Bookmark</button>`);
+    if (!window.__IOS) { b.hidden = true; return b; }
+    fetch("/api/bookmarks?kind=" + kind).then((r) => r.json()).then((d) => { if ((d.bookmarks || []).some((x) => x.ref === ref)) b.textContent = "★ Bookmarked"; }).catch(() => {});
+    b.onclick = async () => { const r = await iosPost("/bookmarks", { kind, ref, title, href }); if (r) b.textContent = r.bookmarked ? "★ Bookmarked" : "☆ Bookmark"; };
+    return b;
   }
   function clearPlan(pid) { delete store.plan[pid]; save(); }
   const isMastered = (pid) => { const e = store.plan[pid]; return !!(e && e.got >= 2 && e.due == null); };
@@ -265,6 +280,7 @@
       <button class="btn ${mode === "deep" ? "primary" : ""}" data-m="deep">📖 Deep dive</button>
       <button class="btn" data-done>${done ? "✓ Marked done — undo" : "Mark as done"}</button>
     </div>`);
+    actions.appendChild(bookmarkBtn("topic", t.id, t.title, `/index.html#/topic/${s.id}/${t.id}`));
     wrap.appendChild(actions);
     const body = el(`<div></div>`);
     wrap.appendChild(body);
@@ -542,7 +558,9 @@
     if (!p) return el(`<p>Problem not found.</p>`);
     const idx = PROBLEMS.indexOf(p);
     const wrap = el(`<div></div>`);
-    wrap.appendChild(el(`<div class="crumbs"><a href="#/practice">DSA Practice</a> / ${esc(p.title)}</div>`));
+    const crumbs = el(`<div class="crumbs" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span><a href="#/practice">DSA Practice</a> / ${esc(p.title)}</span></div>`);
+    crumbs.appendChild(bookmarkBtn("problem", p.id, p.title, `/index.html#/problem/${p.id}`));
+    wrap.appendChild(crumbs);
     const pw = el(`<div class="pw"></div>`);
     wrap.appendChild(pw);
 
@@ -685,6 +703,7 @@
         </div>`));
       });
       if (res.logs && res.logs.length) consoleBox.appendChild(el(`<div style="margin-top:8px"><span class="k">console:</span><pre style="margin:4px 0 0">${esc(res.logs.join("\n"))}</pre></div>`));
+      if (all) iosPost("/attempts", { kind: "code", ref: p.id, title: p.title, subject: "dsa", correct: okAll, detail: { passed, total, lang: "javascript" } });
       if (okAll && all) { setProblem(p.id, "solved"); draw(); }
     }
 

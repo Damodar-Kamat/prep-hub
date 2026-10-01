@@ -24,7 +24,7 @@ var lib = { sections: [], problems: [], roadmap: [] };
   }) });
 });
 (w.STUDY_PROBLEMS || []).forEach(function (p) {
-  lib.problems.push({ id: p.id, lc: p.lc || "", pattern: p.pattern || "", stuck: (p.stuck || []).map(strip), complexity: p.complexity || "", title: p.title, difficulty: p.difficulty, tags: p.tags || [], statement: strip(p.statement), hints: (p.hints || []).map(strip) });
+  lib.problems.push({ id: p.id, lc: p.lc || "", companies: p.companies || [], pattern: p.pattern || "", stuck: (p.stuck || []).map(strip), complexity: p.complexity || "", title: p.title, difficulty: p.difficulty, tags: p.tags || [], statement: strip(p.statement), hints: (p.hints || []).map(strip) });
 });
 var rm = w.STUDY_ROADMAP || {};
 (rm.groups || []).forEach(function (g) { (g.problems || []).forEach(function (p) { lib.roadmap.push({ id: p.id, title: p.title, diff: p.diff, lc: p.lc, local: p.local, group: g.name }); }); });

@@ -19,7 +19,8 @@
     const t = await get("/mock/tracks");
     const hist = await get("/mock/history");
     if (p.track === "custom" && p.topic) return topicSession(el, p.topic);
-    if (p.start && p.track) return startSession(el, { track: p.track, count: 5, level: 0, company: p.company || "" });
+    if (p.custom && OS.state.customMock) { const s = OS.state.customMock; OS.state.customMock = null; return runSession(el, s); }
+    if (p.start && p.track) return startSession(el, { track: p.track, count: +p.count || 5, level: 0, company: p.company || "" });
 
     el.appendChild(h(`<div class="page-h"><div><h1>🎙️ Mock interview</h1><p>The interviewer reads questions aloud; answer by voice (Chrome/Edge/Safari) or typing. Each answer is graded against a rubric: key-point coverage, STAR structure, quantified impact, trade-offs, filler words, pace.</p></div></div>`));
     const setup = h(`<div class="card pad-lg">
@@ -37,7 +38,7 @@
     const tr = OS.$("#tracks", setup);
     for (const x of t.tracks) {
       const c = h(`<div class="chip" style="border-radius:12px;padding:12px;flex-direction:column;align-items:flex-start;gap:2px" data-id="${x.id}"><span style="font-size:1.3rem">${x.icon}</span><b style="color:var(--text)">${esc(x.name)}</b><span class="xs dim">${x.count} questions${x.custom ? " · " + x.custom + " mined" : ""}</span></div>`);
-      c.onclick = () => { chosen = x.id; OS.$$("[data-id]", tr).forEach((y) => y.classList.toggle("on", y.dataset.id === chosen)); };
+      c.onclick = () => { if (x.id === "project") return OS.go("#/project"); chosen = x.id; OS.$$("[data-id]", tr).forEach((y) => y.classList.toggle("on", y.dataset.id === chosen)); };
       if (x.id === chosen) c.classList.add("on");
       tr.appendChild(c);
     }
@@ -75,7 +76,7 @@
   function runSession(el, s) {
     const state = { track: s.track, company: s.company, started: Date.now() / 1000, answers: [] };
     let idx = 0, timer = null, secs = 0, rec = null, listening = false, hintsUsed = 0, spoken = false;
-    const evalTrack = s.track === "custom" ? "cs" : s.track;
+    const evalTrack = s.track === "custom" || s.track === "resume" ? "cs" : s.track;
 
     const wrap = h(`<div>
       <div class="spread mb"><div><div class="muted small">${esc(s.track_name)}${s.company ? " · " + esc(s.company) : ""}</div><h2 style="margin:0" id="qn"></h2></div>
@@ -183,7 +184,7 @@
           ${ev.llm && ev.llm.better_answer ? `<details class="qa"><summary>🤖 Model answer (local LLM)</summary><div class="a md">${OS.md(ev.llm.better_answer)}</div></details>` : ""}
           <details class="qa"><summary>📋 Rubric — what a strong answer covers</summary><div class="a">${ev.points.length ? ev.points.map((p) => `<div>${p.covered ? "✅" : "⬜"} ${esc(p.point)} <span class="xs dim">${Math.round(p.hit * 100)}%</span></div>`).join("") : (q.points || []).map((p) => `<div>• ${esc(p)}</div>`).join("")}</div></details>
           ${ev.followup ? `<div class="card mt" style="background:var(--panel2)"><b>🧑‍💼 Follow-up:</b> ${esc(ev.followup)}<div class="row mt"><button class="btn sm" id="fu">Answer the follow-up</button></div></div>` : ""}
-          <div class="row mt"><button class="btn primary" id="next">${last ? "Finish & see report" : "Next question →"}</button><button class="btn" id="retry">↻ Retry this question</button><button class="btn ghost" id="cardit">🃏 Missed points → flashcard</button></div>
+          <div class="row mt"><button class="btn primary" id="next">${last ? "Finish & see report" : "Next question →"}</button><button class="btn" id="retry">↻ Retry this question</button><button class="btn ghost" id="cardit">🃏 Missed points → flashcard</button><span id="bmq"></span></div>
         </div>`));
         const fu = OS.$("#fu", fb);
         if (fu) fu.onclick = () => {
@@ -191,6 +192,7 @@
           go();
         };
         OS.$("#retry", fb).onclick = () => { state.answers.pop(); const prev = ans.value; show(); ans.value = prev; ans.dispatchEvent(new Event("input")); };
+        if (OS.bmBtn) OS.$("#bmq", fb).appendChild(OS.bmBtn("question", q.q.slice(0, 200), q.q, "#/mock?track=" + s.track));
         OS.$("#cardit", fb).onclick = () => OS.saveCards([{ front: q.q, back: (q.points || []).map((p) => "• " + p).join("\n") }], "Mock misses", "mock");
         if (s.track !== "behavioral") speak(ev.verdict + ". " + (ev.followup ? "Follow up: " + ev.followup : ""));
       }
