@@ -73,7 +73,11 @@
     runSession(el, s);
   }
 
-  function runSession(el, s) {
+  // exposed so other pages (interview loop, resume practice) can run rounds; onDone replaces the report
+  OS.runMockSession = (el, s, onDone) => runSession(el, s, onDone);
+  OS.mockReport = (el, st, avg, id) => report(el, st, avg, id);
+
+  function runSession(el, s, onDone) {
     const state = { track: s.track, company: s.company, started: Date.now() / 1000, answers: [] };
     let idx = 0, timer = null, secs = 0, rec = null, listening = false, hintsUsed = 0, spoken = false;
     const evalTrack = s.track === "custom" || s.track === "resume" ? "cs" : s.track;
@@ -211,6 +215,7 @@
       let saved = null;
       if (state.answers.length) { try { saved = await post("/mock/save", state); } catch (_) {} }
       el.innerHTML = "";
+      if (onDone) return onDone(state, saved);
       report(el, state, saved && saved.score, saved && saved.id);
     }
     $("quit").onclick = () => { if (confirm("End the session and see the report?")) finish(); };

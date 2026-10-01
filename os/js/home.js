@@ -60,6 +60,8 @@
         <a class="btn" href="#/company">🏢 Company intel</a>
       </div>
     </div>`));
+    if (OS.todayCard) { const slot = h(`<div class="mt"></div>`); el.appendChild(slot); OS.todayCard(true).then((c) => slot.appendChild(c)).catch(() => slot.remove()); }
+
 
     const grid = h(`<div class="grid g3 mt"></div>`); el.appendChild(grid);
 

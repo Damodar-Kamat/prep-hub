@@ -586,3 +586,75 @@ def resume_questions(text):
             seen.add(q["q"])
             out.append(q)
     return {"questions": out[:40], "skills": sorted(skills, key=lambda k: -skills[k])}
+
+
+# ------------------------------------------------------------------ daily drill
+def _done_today(kind):
+    start = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+    return {r["ref"]: r["c"] for r in db.rows(db.user().execute(
+        "SELECT ref, MAX(correct) c FROM attempts WHERE kind=? AND ts>=? GROUP BY ref", (kind, start)))}
+
+
+def today(progress=None):
+    """A fresh ~30-minute drill every day, biased to your weakest subjects and things you haven't done.
+    Picks are stable for the whole day (seeded by date) and tick off as you complete them."""
+    import random
+    day = time.strftime("%Y-%m-%d")
+    rnd = random.Random(day)
+    acc = subject_accuracy(30)
+    seen_mcq = {r["ref"] for r in db.rows(db.user().execute("SELECT DISTINCT ref FROM attempts WHERE kind='mcq'"))}
+    # weakest 2 subjects that have MCQs (unknown subjects count as weak so you explore them)
+    subs = sorted(mcq.SUBJECTS, key=lambda s: ((acc.get(s) or {}).get("accuracy") if (acc.get(s) or {}).get("accuracy") is not None else 40, rnd.random()))
+    focus = subs[:2]
+    pool = [q for q in mcq.QUESTIONS if q["subject"] in focus]
+    pool.sort(key=lambda q: (q["id"] in seen_mcq, rnd.random()))
+    mcqs = pool[:6]
+    sql_done, dbg_done = solved_set("sql"), solved_set("debug")
+    sql_open = [c for c in sqlbank.CHALLENGES if c["id"] not in sql_done] or sqlbank.CHALLENGES
+    dbg_open = [e for e in debugbank.EXERCISES if e["id"] not in dbg_done] or debugbank.EXERCISES
+    sql_pick = sorted(sql_open, key=lambda c: (c["level"], rnd.random()))[0]
+    dbg_pick = rnd.choice(sorted(dbg_open, key=lambda e: e["level"])[:6])
+    scn_i = rnd.randrange(len(scenarios.SCENARIOS))
+    td_mcq, td_sql, td_dbg, td_scn = _done_today("mcq"), _done_today("sql"), _done_today("debug"), _done_today("scenario")
+    scn_ref = "scenarios:" + scenarios.SCENARIOS[scn_i]["q"][:120]
+    from . import tools
+    cs = tools.card_stats()
+    open_mistakes = len(mistakes())
+    plan_due = 0
+    for e in ((progress or {}).get("plan") or {}).values():
+        if isinstance(e, dict) and e.get("due") and e["due"] <= day:
+            plan_due += 1
+    items = [
+        {"id": "mcq", "icon": "✅", "title": "6 quick MCQs — %s" % " & ".join(mcq.SUBJECTS[s] for s in focus), "mins": 5,
+         "href": "#/mcq?ids=" + ",".join(q["id"] for q in mcqs), "done": all(q["id"] in td_mcq for q in mcqs),
+         "progress": "%d/%d" % (sum(1 for q in mcqs if q["id"] in td_mcq), len(mcqs))},
+        {"id": "sql", "icon": "🗄️", "title": "SQL: " + sql_pick["title"], "mins": 8, "href": "#/sql?id=" + sql_pick["id"], "done": bool(td_sql.get(sql_pick["id"]))},
+        {"id": "debug", "icon": "🐞", "title": "Fix the bug: " + dbg_pick["title"], "mins": 8, "href": "#/debug?id=" + dbg_pick["id"], "done": bool(td_dbg.get(dbg_pick["id"]))},
+        {"id": "scenario", "icon": "🚨", "title": "Scenario: " + scenarios.SCENARIOS[scn_i]["q"][:90] + "…", "mins": 6, "href": "#/scenarios?id=%d" % scn_i, "done": scn_ref in td_scn},
+        {"id": "cards", "icon": "🃏", "title": "Review %d due flashcards" % cs["due"], "mins": max(2, cs["due"] // 6), "href": "#/cards?review=1", "done": cs["due"] == 0},
+    ]
+    if plan_due:
+        items.append({"id": "plan", "icon": "🧩", "title": "Re-solve %d DSA plan problem%s due today" % (plan_due, "" if plan_due == 1 else "s"), "mins": 20 * min(plan_due, 2), "href": "#/revision", "done": False})
+    if open_mistakes:
+        items.append({"id": "mistakes", "icon": "❌", "title": ("Fix 3 of your %d open mistakes" % open_mistakes) if open_mistakes > 3 else "Fix your %d open mistake%s" % (open_mistakes, "" if open_mistakes == 1 else "s"), "mins": 6, "href": "#/revision?tab=mistakes", "done": False})
+    return {"date": day, "focus": [{"id": s, "name": mcq.SUBJECTS[s]} for s in focus], "items": items,
+            "done": sum(1 for i in items if i["done"]), "total": len(items), "minutes": sum(i["mins"] for i in items)}
+
+
+# ------------------------------------------------------------------ role readiness
+def role_readiness(progress=None):
+    """0–100 readiness per role: the role's subjects' skill scores + its mock tracks' recent averages."""
+    a = analytics(progress)
+    skills = {s["id"]: s["score"] for s in a["skills"]}
+    tracks = {t["track"]: t for t in a["tracks"]}
+    out = {}
+    for r in ROLES:
+        subj = [skills.get(s, 0) for s in r["subjects"]]
+        mk = [tracks[t]["last"] * 10 for t in r["tracks"] if t in tracks]
+        parts = [(sum(subj) / len(subj), 0.65)] + ([(sum(mk) / len(mk), 0.35)] if mk else [])
+        score = round(sum(v * w for v, w in parts) / sum(w for _, w in parts))
+        gaps = sorted(r["subjects"], key=lambda s: skills.get(s, 0))[:2]
+        untried = [t for t in r["tracks"] if t not in tracks]
+        out[r["id"]] = {"score": score, "gaps": [{"id": g, "name": SUBJECT_NAMES.get(g, g), "score": skills.get(g, 0)} for g in gaps],
+                        "untried_tracks": [{"id": t, "name": bank.TRACKS.get(t, {}).get("name", t)} for t in untried]}
+    return out

@@ -257,3 +257,8 @@ a.card.subj:hover { border-color: var(--accent); transform: translateY(-1px); }
   .grid[style*="grid-template-columns:260px"], .grid[style*="grid-template-columns:280px"] { grid-template-columns: minmax(0, 1fr) !important; }
   .tbl th, .tbl td { white-space: normal; }
 }
+#focusBtn { margin-left: auto; font-variant-numeric: tabular-nums; }
+#focusBtn.on { color: var(--accent); background: var(--accent-bg); }
+.grid > * { min-width: 0; }
+.card a.small, .card .small, .chip { overflow-wrap: anywhere; }
+.chip { white-space: normal; }

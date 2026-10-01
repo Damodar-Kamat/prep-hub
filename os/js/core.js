@@ -88,6 +88,7 @@
   // ---------------------------------------------------------------- router
   OS.nav = [
     ["#/", "🏠", "Dashboard"],
+    ["#/today", "🎯", "Today's drill"],
     ["Learn", null],
     ["#/learn", "📚", "Learn hub"],
     ["#/learn/dsa", "🧠", "DSA"],
@@ -105,6 +106,7 @@
     ["#/lab", "⌨️", "Code lab"],
     ["Interview", null],
     ["#/mock", "🎙️", "Mock interview"],
+    ["#/loop", "🏢", "Full interview loop"],
     ["#/mock?track=behavioral", "🗣️", "Behavioral"],
     ["#/project", "📁", "Project round"],
     ["#/mock?track=system-design", "🏗️", "System design"],
@@ -186,6 +188,10 @@
     { grp: "Do", icon: "🎙️", label: "Start a behavioral mock", run: () => OS.go("#/mock?track=behavioral&start=1") },
     { grp: "Do", icon: "🏗️", label: "Start a system design mock", run: () => OS.go("#/mock?track=system-design&start=1") },
     { grp: "Do", icon: "🃏", label: "Review due flashcards", run: () => OS.go("#/cards?review=1") },
+    { grp: "Do", icon: "🎯", label: "Start today's drill", run: () => OS.go("#/today") },
+    { grp: "Do", icon: "🏢", label: "Run a full interview loop", run: () => OS.go("#/loop") },
+    { grp: "Do", icon: "✅", label: "Quick MCQ quiz", run: () => OS.go("#/mcq?start=1") },
+    { grp: "Do", icon: "⏱️", label: "Start a focus timer", run: () => { const b = OS.$("#focusBtn"); if (b) b.click(); } },
     { grp: "Do", icon: "🌗", label: "Toggle theme", run: () => OS.toggleTheme() },
   ];
   OS.palette = (initial) => {

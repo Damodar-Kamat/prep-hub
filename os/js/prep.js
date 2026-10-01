@@ -33,13 +33,17 @@
 
   // ---------------------------------------------------------------- Roles
   OS.views["/roles"] = async (el, p) => {
-    const { roles } = await get("/roles");
+    const [{ roles }, rd] = await Promise.all([get("/roles"), post("/roles/readiness", { progress: OS.progressLite() }).catch(() => ({ readiness: {} }))]);
+    const ready = rd.readiness || {};
     el.appendChild(h(`<div class="page-h"><div><h1>🧭 Role prep paths</h1><p>What each role is actually interviewed on — the rounds, the focus, a week-by-week plan and the exact topics and mock tracks to use.</p></div></div>`));
-    const chips = h(`<div class="row mb">${roles.map((r) => `<a class="chip ${r.id === (p.id || roles[0].id) ? "on" : ""}" href="#/roles?id=${r.id}">${r.icon} ${esc(r.name)}</a>`).join("")}</div>`);
+    const chips = h(`<div class="row mb">${roles.map((r) => `<a class="chip ${r.id === (p.id || roles[0].id) ? "on" : ""}" href="#/roles?id=${r.id}">${r.icon} ${esc(r.name)}${ready[r.id] ? ` <b style="color:${OS.scoreColor(ready[r.id].score / 10)}">${ready[r.id].score}%</b>` : ""}</a>`).join("")}</div>`);
     el.appendChild(chips);
     const r = roles.find((x) => x.id === p.id) || roles[0];
-    el.appendChild(h(`<div class="card pad-lg"><div class="spread"><h2 style="margin:0">${r.icon} ${esc(r.name)} <span class="badge">${esc(r.years)}</span></h2><a class="btn primary" href="#/plan">🗓️ Build a dated plan</a></div>
+    el.appendChild(h(`<div class="card pad-lg"><div class="spread"><h2 style="margin:0">${r.icon} ${esc(r.name)} <span class="badge">${esc(r.years)}</span></h2><span class="row"><a class="btn" href="#/plan">🗓️ Build a dated plan</a><a class="btn primary" href="#/loop?go=${{ "backend-sde2": "backend-sde2", "senior-backend": "senior-backend", lead: "lead", "data-engineer": "data-engineer", "sre-devops": "sre-devops" }[r.id] || "quick"}">🏢 Run this role's loop</a></span></div>
       <div class="def mt">${esc(r.focus)}</div>
+      ${ready[r.id] ? `<div class="row mt" style="gap:16px">${OS.ring(ready[r.id].score / 10, 72, ready[r.id].score + "%")}<div class="small"><b>Readiness for this role</b> — from your skill scores in its subjects and your latest mock scores in its rounds.
+        <div class="mt">Biggest gaps: ${ready[r.id].gaps.map((g) => `<a class="chip" href="#/learn/${g.id}">${esc(g.name)} · ${g.score}</a>`).join(" ")}</div>
+        ${ready[r.id].untried_tracks.length ? `<div class="mt muted">Rounds you haven't practised: ${ready[r.id].untried_tracks.map((t) => esc(t.name)).join(", ")}</div>` : ""}</div></div>` : ""}
       <div class="grid g2 mt"><div><h3>🎤 Typical rounds</h3><ol class="small">${r.rounds.map((x) => `<li>${esc(x)}</li>`).join("")}</ol></div>
       <div><h3>🗓️ Plan</h3><ul class="small">${r.weeks.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div></div>
       <div class="grid g2 mt"><div><h3>📚 Must-know topics</h3><div class="col">${r.topics.map((t) => `<a class="small" href="${OS.topicHref(t.section, t.id)}">→ ${esc(t.title)}</a>`).join("")}</div>

@@ -534,6 +534,24 @@ def roles(q, b):
     return {"roles": practice.roles()}
 
 
+@route("POST", "/api/roles/readiness")
+def roles_readiness(q, b):
+    return {"readiness": practice.role_readiness(_progress(b))}
+
+
+@route("POST", "/api/today")
+def today(q, b):
+    return practice.today(_progress(b))
+
+
+@route("POST", "/api/focus")
+def focus(q, b):
+    """Focus timer finished a block: log the minutes as study time."""
+    mins = max(0.0, min(180.0, float(b.get("minutes", 0))))
+    db.bump_activity(mins)
+    return {"ok": True, "minutes": mins}
+
+
 @route("GET", "/api/company-bank")
 def company_bank(q, b):
     return practice.company_bank(q.get("company", ""))
